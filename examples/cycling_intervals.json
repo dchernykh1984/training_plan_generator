@@ -1,0 +1,40 @@
+{
+  "name": "3x8 Cycling Intervals",
+  "sport": "cycling",
+  "steps": [
+    {
+      "type": "warmup",
+      "duration_seconds": 600,
+      "targets": [{"type": "power", "low": 130, "high": 170}]
+    },
+    {
+      "type": "repeat",
+      "count": 3,
+      "steps": [
+        {
+          "type": "interval",
+          "duration_seconds": 480,
+          "targets": [
+            {"type": "power",      "low": 260, "high": 300},
+            {"type": "cadence",    "low": 88,  "high": 92},
+            {"type": "heart_rate", "low": 155, "high": 165}
+          ]
+        },
+        {
+          "type": "rest",
+          "duration_seconds": 240,
+          "targets": [
+            {"type": "power",      "low": 90,  "high": 110},
+            {"type": "cadence",    "low": 65,  "high": 75},
+            {"type": "heart_rate", "low": 110, "high": 130}
+          ]
+        }
+      ]
+    },
+    {
+      "type": "cooldown",
+      "duration_seconds": 300,
+      "targets": [{"type": "power", "low": 90, "high": 120}]
+    }
+  ]
+}
