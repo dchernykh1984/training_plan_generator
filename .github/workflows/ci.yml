@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - uses: pre-commit/action@v3.0.1
+
+  commitizen:
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Install commitizen
+        run: pip install commitizen==4.13.10
+      - name: Check commit messages
+        run: cz check --rev-range origin/main..HEAD
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: "pip"
+      - name: Install Poetry
+        run: pip install poetry poetry-plugin-export
+      - name: Export dependencies
+        run: poetry export --without-hashes --format=requirements.txt --output=requirements.txt
+      - name: Run pip-audit
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
+
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Install Poetry
+        run: pip install poetry
+      - name: Configure Poetry
+        run: poetry config virtualenvs.in-project true
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v5
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
+      - name: Install dependencies
+        run: poetry install --no-root
+      - name: Run tests
+        run: poetry run pytest
