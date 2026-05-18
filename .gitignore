@@ -97,3 +97,7 @@ htmlcov/
 # Windows
 Thumbs.db
 desktop.ini
+
+# ===== Temporary files =====
+
+tmp/
