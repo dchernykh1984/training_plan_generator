@@ -1,6 +1,6 @@
 # training-plan-generator
 
-CLI tool for generating personalized training plans.
+CLI tool for uploading structured workout plans to training services.
 
 ## Setup
 
@@ -90,7 +90,7 @@ Restart your terminal after running `pipx ensurepath`.
 
 ```bash
 poetry config virtualenvs.in-project true
-poetry install --no-root
+poetry install
 ```
 
 ### 5. Set up pre-commit hooks
@@ -107,6 +107,110 @@ To run all checks manually across all files:
 ```bash
 poetry run pre-commit run --all-files
 ```
+
+## Usage
+
+### Upload to Garmin Connect
+
+```bash
+poetry run training-plan-generator upload \
+  --plan examples/cycling_intervals.json \
+  --connector garmin \
+  --credentials-provider json \
+  --creds-json /path/to/credentials.json
+```
+
+Or with KeePass:
+
+```bash
+poetry run training-plan-generator upload \
+  --plan examples/cycling_intervals.json \
+  --connector garmin \
+  --credentials-provider keepass \
+  --creds-keepass /path/to/database.kdbx
+```
+
+The KeePass master password is read from `--keepass-password`, the `KEEPASS_PASSWORD`
+environment variable, or prompted interactively.
+
+### JSON plan format
+
+```json
+{
+  "name": "Workout name",
+  "sport": "cycling",
+  "steps": [
+    {"type": "warmup",   "duration_seconds": 600,
+     "targets": [{"type": "power", "low": 130, "high": 170}]},
+    {
+      "type": "repeat", "count": 3,
+      "steps": [
+        {"type": "interval", "duration_seconds": 480,
+         "targets": [
+           {"type": "power",      "low": 260, "high": 300},
+           {"type": "cadence",    "low": 88,  "high": 92},
+           {"type": "heart_rate", "low": 155, "high": 165}
+         ]},
+        {"type": "rest", "duration_seconds": 240,
+         "targets": [{"type": "power", "low": 90, "high": 110}]}
+      ]
+    },
+    {"type": "cooldown", "duration_seconds": 300,
+     "targets": [{"type": "power", "low": 90, "high": 120}]}
+  ]
+}
+```
+
+Supported sports: `cycling`, `running`, `swimming`.
+Supported step types: `warmup`, `cooldown`, `interval`, `rest`, `repeat`.
+Supported target types: `power` (watts), `heart_rate` (bpm), `cadence` (rpm).
+Each step accepts 0-3 targets (at most one of each type).
+
+**Note:** Garmin Connect supports at most 2 targets per step. When a
+step has 3 targets, the adapter keeps `power` and `heart_rate` (by priority) and drops
+`cadence`, printing a warning and writing it to the run log.
+
+### JSON credentials file format
+
+```json
+[
+  {
+    "service": "garmin",
+    "url": "https://connect.garmin.com",
+    "login": "user@example.com",
+    "password": "yourpassword"
+  }
+]
+```
+
+### Cache and log
+
+Uploaded workouts and the execution log are stored under the cache directory
+(default: `~/.training_plan_generator/cache`):
+
+```
+~/.training_plan_generator/cache/
+  workouts/
+    <slug>.garmin.json          Garmin payload
+    <slug>.source.json          original source plan JSON
+  training_plan_generator.log   append log across all runs
+```
+
+Override the cache directory with `--cache-dir PATH`.
+
+### Extending the tool
+
+Adding a new connector requires a payload adapter, a connector, and two registry
+entries; adding a credential provider requires a provider/factory and one registry
+entry. No changes to CLI, cache, or orchestration are needed in either case:
+
+- **New connector:** implement `PayloadAdapter` (workout plan -> service JSON) in
+  `app/adapters/` and `WorkoutConnector` (auth + upload) in `app/connectors/`, then
+  add both to `CONNECTORS` / `PAYLOAD_ADAPTERS` in `app/connectors/registry.py`.
+- **New credential provider:** implement `CredentialProvider` and
+  `CredentialProviderFactory` in `app/credentials/`, add the factory instance to
+  `PROVIDER_FACTORIES` in `app/credentials/registry.py`. The factory's
+  `add_cli_args()` method registers any provider-specific CLI flags automatically.
 
 ## Contributing
 
