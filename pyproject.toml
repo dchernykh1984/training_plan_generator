@@ -5,6 +5,9 @@ description = "Generate personalized training plans"
 authors = ["Denis Chernykh <education03@mail.ru>"]
 packages = [{include = "app"}]
 
+[tool.poetry.scripts]
+training-plan-generator = "app.cli:main"
+
 [tool.poetry.dependencies]
 python = "^3.14"
 pykeepass = "^4.1.1"
