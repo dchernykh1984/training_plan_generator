@@ -249,10 +249,10 @@ Warnings are printed to stdout and written to the run log by the CLI.
 ### Cache and log
 
 Uploaded workouts and the execution log are stored under the cache directory
-(default: `~/.training_plan_generator/cache`):
+(default: `./logs` in the current working directory):
 
 ```
-~/.training_plan_generator/cache/
+logs/
   workouts/
     <slug>.garmin.json          Garmin payload
     <slug>.source.json          original source plan JSON
