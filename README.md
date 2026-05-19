@@ -145,6 +145,18 @@ poetry run training-plan-generator upload \
 The KeePass master password is read from `--keepass-password`, the `KEEPASS_PASSWORD`
 environment variable, or prompted interactively.
 
+Use `--login` to select a specific account when the credentials store has more than one
+entry for the same service:
+
+```bash
+poetry run training-plan-generator upload \
+  --plan templates/workout_garmin.json \
+  --connector garmin \
+  --credentials-provider keepass \
+  --creds-keepass /path/to/database.kdbx \
+  --login your@email.com
+```
+
 ### JSON plan format
 
 See [`templates/workout_garmin.json`](templates/workout_garmin.json) for a ready-to-edit example.

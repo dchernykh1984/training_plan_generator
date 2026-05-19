@@ -45,6 +45,7 @@ def _upload_args(
     creds_json=None,
     creds_keepass=None,
     keepass_password=None,
+    login=None,
 ):
     import argparse
 
@@ -57,6 +58,7 @@ def _upload_args(
         creds_json=creds_json,
         creds_keepass=creds_keepass,
         keepass_password=keepass_password,
+        login=login,
     )
     return ns
 
@@ -287,6 +289,58 @@ def test_main_upload(tmp_path):
 
             main()
     assert exc.value.code == 0
+
+
+def test_parser_accepts_login_flag(tmp_path):
+    parser = _build_parser()
+    creds_file = _write_garmin_creds(tmp_path)
+    plan = _plan_file(tmp_path)
+    args = parser.parse_args(
+        [
+            "upload",
+            "--plan",
+            str(plan),
+            "--connector",
+            "garmin",
+            "--credentials-provider",
+            "json",
+            "--creds-json",
+            str(creds_file),
+            "--login",
+            "me@example.com",
+        ]
+    )
+    assert args.login == "me@example.com"
+
+
+def test_upload_login_flag_filters_credentials(tmp_path):
+    creds = [
+        {
+            "service": "garmin",
+            "url": "garmin",
+            "login": "a@test.com",
+            "password": "pw1",
+        },
+        {
+            "service": "garmin",
+            "url": "garmin",
+            "login": "b@test.com",
+            "password": "pw2",
+        },
+    ]
+    creds_file = tmp_path / "creds.json"
+    creds_file.write_text(json.dumps(creds))
+    args = _upload_args(tmp_path, creds_json=str(creds_file), login="b@test.com")
+
+    mock_connector = MagicMock()
+    mock_connector.upload.return_value = "42"
+
+    with patch("app.cli.get_connector", return_value=mock_connector):
+        result = _cmd_upload(args)
+
+    assert result == 0
+    used_creds = mock_connector.login.call_args[0][0]
+    assert used_creds.login == "b@test.com"
 
 
 def test_parser_build_succeeds():

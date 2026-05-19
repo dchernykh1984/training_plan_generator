@@ -45,6 +45,15 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=sorted(PROVIDER_FACTORIES),
         help="Credentials provider",
     )
+    up.add_argument(
+        "--login",
+        metavar="LOGIN",
+        default=None,
+        help=(
+            "Filter credentials by login"
+            " (useful when multiple accounts exist for one service)"
+        ),
+    )
     for factory in PROVIDER_FACTORIES.values():
         factory.add_cli_args(up)
 
@@ -94,7 +103,9 @@ def _cmd_upload(args: argparse.Namespace) -> int:
     try:
         factory = get_factory(args.credentials_provider)
         provider = factory.build_from_args(args)
-        request = CredentialRequest(service=args.connector, url=args.connector)
+        request = CredentialRequest(
+            service=args.connector, url=args.connector, login=args.login
+        )
         creds = provider.get(request)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

@@ -30,3 +30,16 @@ The master password is read from:
 1. `--keepass-password PASSWORD` CLI flag
 2. `KEEPASS_PASSWORD` environment variable
 3. Interactive prompt (if neither of the above is set)
+
+## Multiple accounts
+
+If you have more than one Garmin entry in the database, use `--login` to pick the right one:
+
+```bash
+poetry run training-plan-generator upload \
+  --plan templates/workout_garmin.json \
+  --connector garmin \
+  --credentials-provider keepass \
+  --creds-keepass /path/to/database.kdbx \
+  --login your@email.com
+```
