@@ -125,9 +125,7 @@ def test_three_targets_cadence_dropped_warning_in_result():
     step = _first_step(result)
     assert step["targetType"]["workoutTargetTypeKey"] == "power.zone"
     assert step["secondaryTargetType"]["workoutTargetTypeKey"] == "heart.rate.zone"
-    assert all(
-        "cadence" not in str(step.get("secondaryTargetType", "")) for _ in [None]
-    )
+    assert "cadence" not in str(step.get("secondaryTargetType", ""))
 
 
 def test_priority_is_deterministic_regardless_of_input_order():
@@ -393,3 +391,17 @@ def test_segment_contains_sport_type():
     segment = payload["workoutSegments"][0]
     assert "sportType" in segment
     assert segment["sportType"]["sportTypeId"] == 2
+
+
+def test_step_description_present_when_name_set():
+    plan = parse_workout(
+        _plan(steps=[{"type": "warmup", "duration_seconds": 300, "name": "Z1 Warm Up"}])
+    )
+    step = _first_step(_adapter().to_payload(plan))
+    assert step["stepDescription"] == "Z1 Warm Up"
+
+
+def test_step_description_absent_when_name_empty():
+    plan = parse_workout(_plan(steps=[{"type": "warmup", "duration_seconds": 300}]))
+    step = _first_step(_adapter().to_payload(plan))
+    assert "stepDescription" not in step

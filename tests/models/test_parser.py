@@ -520,3 +520,35 @@ def test_target_integral_float_accepted():
     plan = parse_workout(_step_with_target(200.0, 250.0))
     assert plan.steps[0].targets[0].low == 200.0
     assert plan.steps[0].targets[0].high == 250.0
+
+
+# --- step name ---
+
+
+def test_step_name_defaults_to_empty():
+    plan = parse_workout(_plan())
+    assert plan.steps[0].name == ""
+
+
+def test_step_name_parsed():
+    data = _plan(steps=[{"type": "warmup", "duration_seconds": 300, "name": "Warm Up"}])
+    plan = parse_workout(data)
+    assert plan.steps[0].name == "Warm Up"
+
+
+def test_step_name_whitespace_stripped():
+    data = _plan(steps=[{"type": "warmup", "duration_seconds": 300, "name": "  Z1  "}])
+    plan = parse_workout(data)
+    assert plan.steps[0].name == "Z1"
+
+
+def test_step_name_whitespace_only_becomes_empty():
+    data = _plan(steps=[{"type": "warmup", "duration_seconds": 300, "name": "   "}])
+    plan = parse_workout(data)
+    assert plan.steps[0].name == ""
+
+
+def test_step_name_nonstring_raises():
+    data = _plan(steps=[{"type": "warmup", "duration_seconds": 300, "name": 123}])
+    with pytest.raises(ValueError, match="'name' must be a string"):
+        parse_workout(data)

@@ -88,6 +88,8 @@ def _build_step_payload(
         "endCondition": _END_CONDITION,
         "endConditionValue": float(step.duration_seconds),
     }
+    if step.name:
+        payload["stepDescription"] = step.name
 
     if ordered:
         payload.update(_target_fields("target", ordered[0]))
