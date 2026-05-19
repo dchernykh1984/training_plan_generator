@@ -147,45 +147,7 @@ environment variable, or prompted interactively.
 
 ### JSON plan format
 
-```json
-{
-  "name": "Workout name",
-  "description": "Optional free-text description",
-  "sport": "cycling",
-  "ftp_watts": 260,
-  "estimated_tss": 90,
-  "steps": [
-    {
-      "type": "warmup",
-      "name": "Easy Spin",
-      "duration_seconds": 600,
-      "targets": [{"type": "power", "low": 130, "high": 170}]
-    },
-    {
-      "type": "interval",
-      "name": "1km Build",
-      "duration_type": "distance",
-      "duration_seconds": 1000,
-      "targets": [{"type": "power", "low": 200, "high": 240}]
-    },
-    {
-      "type": "repeat", "count": 3,
-      "steps": [
-        {"type": "interval", "duration_seconds": 480,
-         "targets": [
-           {"type": "power",      "low": 260, "high": 300},
-           {"type": "cadence",    "low": 88,  "high": 92},
-           {"type": "heart_rate", "low": 155, "high": 165}
-         ]},
-        {"type": "rest", "duration_type": "open",
-         "targets": [{"type": "heart_rate", "low": 110, "high": 130}]}
-      ]
-    },
-    {"type": "cooldown", "duration_seconds": 300,
-     "targets": [{"type": "power", "low": 90, "high": 120}]}
-  ]
-}
-```
+See [`templates/workout_garmin.json`](templates/workout_garmin.json) for a ready-to-edit example.
 
 **Plan-level fields**
 
@@ -247,19 +209,7 @@ Warnings are printed to stdout and written to the run log by the CLI.
 
 ### JSON credentials file format
 
-See [`templates/credentials.json`](templates/credentials.json) for a ready-to-edit copy.
-The file is a JSON array - one object per service:
-
-```json
-[
-  {
-    "service": "garmin",
-    "url": "https://connect.garmin.com",
-    "login": "user@example.com",
-    "password": "yourpassword"
-  }
-]
-```
+See [`templates/credentials.json`](templates/credentials.json).
 
 ### Cache and log
 
