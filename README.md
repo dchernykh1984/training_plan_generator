@@ -138,10 +138,24 @@ environment variable, or prompted interactively.
 ```json
 {
   "name": "Workout name",
+  "description": "Optional free-text description",
   "sport": "cycling",
+  "ftp_watts": 260,
+  "estimated_tss": 90,
   "steps": [
-    {"type": "warmup",   "duration_seconds": 600,
-     "targets": [{"type": "power", "low": 130, "high": 170}]},
+    {
+      "type": "warmup",
+      "name": "Easy Spin",
+      "duration_seconds": 600,
+      "targets": [{"type": "power", "low": 130, "high": 170}]
+    },
+    {
+      "type": "interval",
+      "name": "1km Build",
+      "duration_type": "distance",
+      "duration_seconds": 1000,
+      "targets": [{"type": "power", "low": 200, "high": 240}]
+    },
     {
       "type": "repeat", "count": 3,
       "steps": [
@@ -151,8 +165,8 @@ environment variable, or prompted interactively.
            {"type": "cadence",    "low": 88,  "high": 92},
            {"type": "heart_rate", "low": 155, "high": 165}
          ]},
-        {"type": "rest", "duration_seconds": 240,
-         "targets": [{"type": "power", "low": 90, "high": 110}]}
+        {"type": "rest", "duration_type": "open",
+         "targets": [{"type": "heart_rate", "low": 110, "high": 130}]}
       ]
     },
     {"type": "cooldown", "duration_seconds": 300,
@@ -161,14 +175,63 @@ environment variable, or prompted interactively.
 }
 ```
 
-Supported sports: `cycling`, `running`, `swimming`.
-Supported step types: `warmup`, `cooldown`, `interval`, `rest`, `repeat`.
-Supported target types: `power` (watts), `heart_rate` (bpm), `cadence` (rpm).
-Each step accepts 0-3 targets (at most one of each type).
+**Plan-level fields**
 
-**Note:** Garmin Connect supports at most 2 targets per step. When a
-step has 3 targets, the adapter keeps `power` and `heart_rate` (by priority) and drops
-`cadence`, printing a warning and writing it to the run log.
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | Workout name |
+| `sport` | string | yes | `cycling`, `running`, or `swimming` |
+| `description` | string | no | Free-text description; surfaces in Garmin payload |
+| `ftp_watts` | integer | no | Athlete's FTP in watts (positive) |
+| `estimated_tss` | number | no | Estimated Training Stress Score (&gt;= 0) |
+
+**Step fields**
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `type` | string | - | `warmup`, `cooldown`, `interval`, `rest`, or `repeat` |
+| `name` | string | `""` | Optional step label; appears as `stepDescription` in Garmin |
+| `duration_type` | string | `"time"` | `time`, `distance`, or `open` |
+| `duration_seconds` | integer | - | Seconds when `time`; **meters** when `distance`; absent/null when `open` |
+
+**Duration types**
+
+- `time` - step ends after the given number of seconds.
+- `distance` - step ends after the given number of **meters** (field name `duration_seconds` is reused).
+- `open` - step ends on manual lap-button press; `duration_seconds` must be absent or null.
+
+**Targets**
+
+Supported target types: `power` (watts), `heart_rate` (bpm), `cadence` (rpm).
+Each step accepts 0-3 targets (at most one per type).
+
+Valid value ranges:
+
+| Target | Min | Max |
+|---|---|---|
+| `power` | 0 | 2500 W |
+| `heart_rate` | 20 | 250 bpm |
+| `cadence` | 0 | 220 rpm |
+
+**Garmin-specific notes**
+
+- Garmin Connect supports at most 2 targets per step. Target priority is
+  `power` > `heart_rate` > `cadence`. When a step has 3 targets the lowest-priority
+  one is dropped and a warning is written to the run log.
+- `repeat` steps may not be nested (maximum nesting depth is 1).
+- If the total expanded step count exceeds 50, a warning is written to the run log
+  and the upload is still attempted.
+
+### Adapter warning/fallback contract
+
+Adapters return warnings in `AdapterResult.warnings` rather than raising exceptions
+when they encounter unsupported optional parameters:
+
+- Unsupported target type -&gt; target skipped, warning added.
+- Unsupported `duration_type` -&gt; fallback applied, warning added.
+- Service limit exceeded (e.g. step count) -&gt; upload still attempted, warning added.
+
+Warnings are printed to stdout and written to the run log by the CLI.
 
 ### JSON credentials file format
 
