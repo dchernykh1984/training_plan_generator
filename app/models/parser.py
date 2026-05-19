@@ -64,7 +64,11 @@ def _parse_target(data: dict) -> Target:
     return Target(type=target_type, low=low_f, high=high_f)
 
 
-def _parse_repeat_step(data: dict) -> RepeatStep:
+def _parse_repeat_step(data: dict, depth: int = 0) -> RepeatStep:
+    if depth >= 1:
+        raise ValueError(
+            "Nested repeat steps are not supported (max nesting depth is 1)"
+        )
     count = data.get("count")
     if count is None:
         raise ValueError("Repeat step missing 'count'")
@@ -76,16 +80,16 @@ def _parse_repeat_step(data: dict) -> RepeatStep:
         raise ValueError("Repeat step 'steps' must be a list")
     return RepeatStep(
         count=count_i,
-        steps=tuple(_parse_step(s) for s in nested),
+        steps=tuple(_parse_step(s, depth=depth + 1) for s in nested),
     )
 
 
-def _parse_step(data: dict) -> WorkoutStep | RepeatStep:
+def _parse_step(data: dict, depth: int = 0) -> WorkoutStep | RepeatStep:
     if not isinstance(data, dict):
         raise ValueError(f"Each step must be an object, got {type(data).__name__!r}")
     step_type = data.get("type")
     if step_type == "repeat":
-        return _parse_repeat_step(data)
+        return _parse_repeat_step(data, depth=depth)
     if step_type not in SUPPORTED_STEP_TYPES:
         supported = sorted(SUPPORTED_STEP_TYPES)
         raise ValueError(f"Unknown step type: {step_type!r}. Supported: {supported}")

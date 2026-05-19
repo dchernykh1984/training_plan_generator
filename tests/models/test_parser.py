@@ -552,3 +552,66 @@ def test_step_name_nonstring_raises():
     data = _plan(steps=[{"type": "warmup", "duration_seconds": 300, "name": 123}])
     with pytest.raises(ValueError, match="'name' must be a string"):
         parse_workout(data)
+
+
+# --- repeat nesting depth ---
+
+
+def test_single_level_repeat_accepted():
+    data = _plan(
+        steps=[
+            {
+                "type": "repeat",
+                "count": 2,
+                "steps": [{"type": "interval", "duration_seconds": 60}],
+            }
+        ]
+    )
+    plan = parse_workout(data)
+    assert isinstance(plan.steps[0], RepeatStep)
+
+
+def test_nested_repeat_raises():
+    data = _plan(
+        steps=[
+            {
+                "type": "repeat",
+                "count": 2,
+                "steps": [
+                    {
+                        "type": "repeat",
+                        "count": 3,
+                        "steps": [{"type": "interval", "duration_seconds": 60}],
+                    }
+                ],
+            }
+        ]
+    )
+    with pytest.raises(ValueError, match="Nested repeat"):
+        parse_workout(data)
+
+
+def test_triple_nested_repeat_raises():
+    data = _plan(
+        steps=[
+            {
+                "type": "repeat",
+                "count": 2,
+                "steps": [
+                    {
+                        "type": "repeat",
+                        "count": 3,
+                        "steps": [
+                            {
+                                "type": "repeat",
+                                "count": 4,
+                                "steps": [{"type": "interval", "duration_seconds": 60}],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    )
+    with pytest.raises(ValueError, match="Nested repeat"):
+        parse_workout(data)
