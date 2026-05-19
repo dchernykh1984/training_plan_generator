@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from app.credentials.base import CredentialRequest
 from app.credentials.registry import PROVIDER_FACTORIES, get_factory
 from app.run_log import RunLogger
 
-_DEFAULT_CACHE_DIR = Path.home() / ".training_plan_generator" / "cache"
+_DEFAULT_CACHE_DIR = Path("logs")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -29,7 +30,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--cache-dir",
         metavar="PATH",
         default=str(_DEFAULT_CACHE_DIR),
-        help="Cache directory (default: ~/.training_plan_generator/cache)",
+        help="Cache directory (default: ./logs)",
     )
     up.add_argument(
         "--connector",
@@ -43,6 +44,15 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="credentials_provider",
         choices=sorted(PROVIDER_FACTORIES),
         help="Credentials provider",
+    )
+    up.add_argument(
+        "--login",
+        metavar="LOGIN",
+        default=None,
+        help=(
+            "Filter credentials by login"
+            " (useful when multiple accounts exist for one service)"
+        ),
     )
     for factory in PROVIDER_FACTORIES.values():
         factory.add_cli_args(up)
@@ -93,7 +103,9 @@ def _cmd_upload(args: argparse.Namespace) -> int:
     try:
         factory = get_factory(args.credentials_provider)
         provider = factory.build_from_args(args)
-        request = CredentialRequest(service=args.connector, url=args.connector)
+        request = CredentialRequest(
+            service=args.connector, url=args.connector, login=args.login
+        )
         creds = provider.get(request)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -107,12 +119,17 @@ def _cmd_upload(args: argparse.Namespace) -> int:
 
     print(f"Logging in to {args.connector} ({creds.login})...")
     connector = get_connector(args.connector)
+    _garmin_logger = logging.getLogger("garminconnect.client")
+    _orig_level = _garmin_logger.level
+    _garmin_logger.setLevel(logging.ERROR)
     try:
         connector.login(creds)
     except RuntimeError as e:
         print(f"Error: {e}", file=sys.stderr)
         log.error(f"login error: {e}")
         return 1
+    finally:
+        _garmin_logger.setLevel(_orig_level)
 
     log.info("login success")
 

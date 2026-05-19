@@ -1,0 +1,48 @@
+{
+  "name": "My Workout Name",
+  "description": "Optional free-text description shown in Garmin Connect",
+  "sport": "cycling",
+  "ftp_watts": 260,
+  "estimated_tss": 80,
+  "steps": [
+    {
+      "type": "warmup",
+      "name": "Easy Spin",
+      "duration_seconds": 600,
+      "targets": [
+        {"type": "power", "low": 130, "high": 175}
+      ]
+    },
+    {
+      "type": "repeat",
+      "count": 3,
+      "steps": [
+        {
+          "type": "interval",
+          "name": "Hard Effort",
+          "duration_seconds": 300,
+          "targets": [
+            {"type": "power",      "low": 260, "high": 300},
+            {"type": "cadence",    "low": 88,  "high": 92}
+          ]
+        },
+        {
+          "type": "rest",
+          "name": "Recovery",
+          "duration_type": "open",
+          "targets": [
+            {"type": "heart_rate", "low": 110, "high": 130}
+          ]
+        }
+      ]
+    },
+    {
+      "type": "cooldown",
+      "name": "Easy Spin Down",
+      "duration_seconds": 300,
+      "targets": [
+        {"type": "power", "low": 90, "high": 130}
+      ]
+    }
+  ]
+}

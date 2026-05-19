@@ -85,6 +85,7 @@ htmlcov/
 
 # Logs
 *.log
+logs/
 
 # Activity cache
 .cache/
@@ -101,3 +102,4 @@ desktop.ini
 # ===== Temporary files =====
 
 tmp/
+create_plan.sh

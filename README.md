@@ -110,21 +110,33 @@ poetry run pre-commit run --all-files
 
 ## Usage
 
+### Templates
+
+Ready-to-edit starting points in the `templates/` folder:
+
+| File | Description |
+|---|---|
+| [`templates/workout_garmin.json`](templates/workout_garmin.json) | Workout plan template (warmup, repeat block, cooldown; all target types) |
+| [`templates/credentials.json`](templates/credentials.json) | JSON credentials file template for Garmin Connect |
+| [`templates/keepass_entry.md`](templates/keepass_entry.md) | Guide for setting up the KeePass entry (Title, URL, Username, Password) |
+
 ### Upload to Garmin Connect
 
+Copy and fill in the templates, then run:
+
 ```bash
 poetry run training-plan-generator upload \
-  --plan examples/cycling_intervals.json \
+  --plan templates/workout_garmin.json \
   --connector garmin \
   --credentials-provider json \
-  --creds-json /path/to/credentials.json
+  --creds-json templates/credentials.json
 ```
 
-Or with KeePass:
+Or with KeePass (see [`templates/keepass_entry.md`](templates/keepass_entry.md) for entry setup):
 
 ```bash
 poetry run training-plan-generator upload \
-  --plan examples/cycling_intervals.json \
+  --plan templates/workout_garmin.json \
   --connector garmin \
   --credentials-provider keepass \
   --creds-keepass /path/to/database.kdbx
@@ -133,47 +145,21 @@ poetry run training-plan-generator upload \
 The KeePass master password is read from `--keepass-password`, the `KEEPASS_PASSWORD`
 environment variable, or prompted interactively.
 
+Use `--login` to select a specific account when the credentials store has more than one
+entry for the same service:
+
+```bash
+poetry run training-plan-generator upload \
+  --plan templates/workout_garmin.json \
+  --connector garmin \
+  --credentials-provider keepass \
+  --creds-keepass /path/to/database.kdbx \
+  --login your@email.com
+```
+
 ### JSON plan format
 
-```json
-{
-  "name": "Workout name",
-  "description": "Optional free-text description",
-  "sport": "cycling",
-  "ftp_watts": 260,
-  "estimated_tss": 90,
-  "steps": [
-    {
-      "type": "warmup",
-      "name": "Easy Spin",
-      "duration_seconds": 600,
-      "targets": [{"type": "power", "low": 130, "high": 170}]
-    },
-    {
-      "type": "interval",
-      "name": "1km Build",
-      "duration_type": "distance",
-      "duration_seconds": 1000,
-      "targets": [{"type": "power", "low": 200, "high": 240}]
-    },
-    {
-      "type": "repeat", "count": 3,
-      "steps": [
-        {"type": "interval", "duration_seconds": 480,
-         "targets": [
-           {"type": "power",      "low": 260, "high": 300},
-           {"type": "cadence",    "low": 88,  "high": 92},
-           {"type": "heart_rate", "low": 155, "high": 165}
-         ]},
-        {"type": "rest", "duration_type": "open",
-         "targets": [{"type": "heart_rate", "low": 110, "high": 130}]}
-      ]
-    },
-    {"type": "cooldown", "duration_seconds": 300,
-     "targets": [{"type": "power", "low": 90, "high": 120}]}
-  ]
-}
-```
+See [`templates/workout_garmin.json`](templates/workout_garmin.json) for a ready-to-edit example.
 
 **Plan-level fields**
 
@@ -235,24 +221,15 @@ Warnings are printed to stdout and written to the run log by the CLI.
 
 ### JSON credentials file format
 
-```json
-[
-  {
-    "service": "garmin",
-    "url": "https://connect.garmin.com",
-    "login": "user@example.com",
-    "password": "yourpassword"
-  }
-]
-```
+See [`templates/credentials.json`](templates/credentials.json).
 
 ### Cache and log
 
 Uploaded workouts and the execution log are stored under the cache directory
-(default: `~/.training_plan_generator/cache`):
+(default: `./logs` in the current working directory):
 
 ```
-~/.training_plan_generator/cache/
+logs/
   workouts/
     <slug>.garmin.json          Garmin payload
     <slug>.source.json          original source plan JSON
