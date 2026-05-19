@@ -158,6 +158,34 @@ def test_unknown_target_type_raises():
         parse_workout(data)
 
 
+def test_target_type_list_raises():
+    data = _plan(
+        steps=[
+            {
+                "type": "interval",
+                "duration_seconds": 300,
+                "targets": [{"type": [], "low": 100, "high": 200}],
+            }
+        ]
+    )
+    with pytest.raises(ValueError, match="target type"):
+        parse_workout(data)
+
+
+def test_target_type_dict_raises():
+    data = _plan(
+        steps=[
+            {
+                "type": "interval",
+                "duration_seconds": 300,
+                "targets": [{"type": {}, "low": 100, "high": 200}],
+            }
+        ]
+    )
+    with pytest.raises(ValueError, match="target type"):
+        parse_workout(data)
+
+
 def test_target_missing_low_raises():
     data = _plan(
         steps=[
@@ -660,6 +688,53 @@ def test_step_name_nonstring_raises():
     data = _plan(steps=[{"type": "warmup", "duration_seconds": 300, "name": 123}])
     with pytest.raises(ValueError, match="'name' must be a string"):
         parse_workout(data)
+
+
+# --- target value ranges ---
+
+
+def _step_with_typed_target(target_type, low, high):
+    return _plan(
+        steps=[
+            {
+                "type": "interval",
+                "duration_seconds": 300,
+                "targets": [{"type": target_type, "low": low, "high": high}],
+            }
+        ]
+    )
+
+
+@pytest.mark.parametrize(
+    "target_type,low,high",
+    [
+        ("power", 0, 100),
+        ("power", 2000, 2500),
+        ("cadence", 0, 90),
+        ("cadence", 80, 220),
+        ("heart_rate", 20, 100),
+        ("heart_rate", 100, 250),
+    ],
+)
+def test_target_range_boundary_accepted(target_type, low, high):
+    plan = parse_workout(_step_with_typed_target(target_type, low, high))
+    assert plan.steps[0].targets[0].low == low
+
+
+@pytest.mark.parametrize(
+    "target_type,low,high",
+    [
+        ("power", -1, 100),
+        ("power", 100, 2501),
+        ("cadence", -1, 90),
+        ("cadence", 80, 221),
+        ("heart_rate", 19, 100),
+        ("heart_rate", 100, 251),
+    ],
+)
+def test_target_range_out_of_bounds_raises(target_type, low, high):
+    with pytest.raises(ValueError, match="out of range"):
+        parse_workout(_step_with_typed_target(target_type, low, high))
 
 
 # --- repeat nesting depth ---

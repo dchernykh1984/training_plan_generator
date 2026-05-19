@@ -27,39 +27,62 @@ def _require_positive_int(value: object, field: str) -> int:
     return result
 
 
+_TARGET_RANGES: dict[str, tuple[float, float]] = {
+    "power": (0, 2500),
+    "cadence": (0, 220),
+    "heart_rate": (20, 250),
+}
+
+
+def _parse_target_value(
+    target_type: str, field: str, raw: int | float | str | None
+) -> float:
+    if raw is None:
+        raise ValueError(f"Target {target_type!r} missing {field!r}")
+    if isinstance(raw, bool):
+        raise ValueError(
+            f"Target {target_type!r} 'low' and 'high' must be numeric, got bool"
+        )
+    try:
+        value = float(raw)
+    except (TypeError, ValueError) as err:
+        raise ValueError(
+            f"Target {target_type!r} 'low' and 'high' must be numeric"
+        ) from err
+    if not math.isfinite(value):
+        raise ValueError(
+            f"Target {target_type!r} 'low' and 'high' must be finite numbers"
+        )
+    if not value.is_integer():
+        # If float targets are needed for future adapters, relax this check
+        # and push int-casting to the adapter (e.g. GarminWorkoutAdapter).
+        raise ValueError(
+            f"Target {target_type!r} 'low' and 'high' must be whole numbers"
+        )
+    range_min, range_max = _TARGET_RANGES[target_type]
+    if value < range_min or value > range_max:
+        raise ValueError(
+            f"Target {target_type!r} {field!r} value {value} out of range "
+            f"[{range_min}, {range_max}]"
+        )
+    return value
+
+
 def _parse_target(data: dict) -> Target:
     if not isinstance(data, dict):
         raise ValueError(f"Each target must be an object, got {type(data).__name__!r}")
     target_type = data.get("type")
+    if not isinstance(target_type, str):
+        raise ValueError(
+            f"target type must be a string, got {type(target_type).__name__!r}"
+        )
     if target_type not in SUPPORTED_TARGET_TYPES:
         supported = sorted(SUPPORTED_TARGET_TYPES)
         raise ValueError(
             f"Unknown target type: {target_type!r}. Supported: {supported}"
         )
-    low = data.get("low")
-    high = data.get("high")
-    if low is None:
-        raise ValueError(f"Target {target_type!r} missing 'low'")
-    if high is None:
-        raise ValueError(f"Target {target_type!r} missing 'high'")
-    if isinstance(low, bool) or isinstance(high, bool):
-        raise ValueError(
-            f"Target {target_type!r} 'low' and 'high' must be numeric, got bool"
-        )
-    try:
-        low_f, high_f = float(low), float(high)
-    except (TypeError, ValueError) as err:
-        raise ValueError(
-            f"Target {target_type!r} 'low' and 'high' must be numeric"
-        ) from err
-    if not math.isfinite(low_f) or not math.isfinite(high_f):
-        raise ValueError(
-            f"Target {target_type!r} 'low' and 'high' must be finite numbers"
-        )
-    if not low_f.is_integer() or not high_f.is_integer():
-        raise ValueError(
-            f"Target {target_type!r} 'low' and 'high' must be whole numbers"
-        )
+    low_f = _parse_target_value(target_type, "low", data.get("low"))
+    high_f = _parse_target_value(target_type, "high", data.get("high"))
     if low_f > high_f:
         raise ValueError(f"Target {target_type!r} has low={low_f} > high={high_f}")
     return Target(type=target_type, low=low_f, high=high_f)
