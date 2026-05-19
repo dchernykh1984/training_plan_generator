@@ -456,6 +456,51 @@ def test_total_duration_excludes_distance_steps():
     assert payload["estimatedDurationInSecs"] == 900
 
 
+def test_expanded_step_count_below_limit_no_warning():
+    steps = [{"type": "interval", "duration_seconds": 60}] * 5
+    plan = parse_workout(_plan(steps=steps))
+    result = _adapter().to_payload(plan)
+    assert not any("exceeds Garmin limit" in w for w in result.warnings)
+
+
+def test_expanded_step_count_exactly_limit_no_warning():
+    steps = [
+        {
+            "type": "repeat",
+            "count": 10,
+            "steps": [
+                {"type": "interval", "duration_seconds": 60},
+                {"type": "rest", "duration_seconds": 30},
+                {"type": "cooldown", "duration_seconds": 30},
+                {"type": "warmup", "duration_seconds": 30},
+                {"type": "interval", "duration_seconds": 60},
+            ],
+        }
+    ]
+    plan = parse_workout(_plan(steps=steps))
+    result = _adapter().to_payload(plan)
+    assert not any("exceeds Garmin limit" in w for w in result.warnings)
+
+
+def test_expanded_step_count_exceeds_limit_warning():
+    steps = [
+        {
+            "type": "repeat",
+            "count": 11,
+            "steps": [
+                {"type": "interval", "duration_seconds": 60},
+                {"type": "rest", "duration_seconds": 30},
+                {"type": "cooldown", "duration_seconds": 30},
+                {"type": "warmup", "duration_seconds": 30},
+                {"type": "interval", "duration_seconds": 60},
+            ],
+        }
+    ]
+    plan = parse_workout(_plan(steps=steps))
+    result = _adapter().to_payload(plan)
+    assert any("exceeds Garmin limit" in w for w in result.warnings)
+
+
 def test_step_description_present_when_name_set():
     plan = parse_workout(
         _plan(steps=[{"type": "warmup", "duration_seconds": 300, "name": "Z1 Warm Up"}])
