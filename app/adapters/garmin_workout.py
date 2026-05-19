@@ -62,6 +62,18 @@ _END_CONDITION_BY_TYPE: dict[str, dict] = {
 }
 
 _TARGET_PRIORITY: list[str] = ["power", "heart_rate", "cadence"]
+_GARMIN_MAX_STEPS = 50
+_GARMIN_MAX_TARGETS = 2
+
+
+def _count_expanded(steps: tuple) -> int:
+    total = 0
+    for step in steps:
+        if isinstance(step, RepeatStep):
+            total += step.count * _count_expanded(step.steps)
+        else:
+            total += 1
+    return total
 
 
 def _sort_targets(targets: tuple[Target, ...]) -> list[Target]:
@@ -86,14 +98,15 @@ def _build_step_payload(
     step: WorkoutStep, step_order: int, warnings: list[str]
 ) -> dict:
     ordered = _sort_targets(step.targets)
-    if len(ordered) == 3:
-        dropped = ordered[2]
-        kept = [ordered[0].type, ordered[1].type]
-        warnings.append(
-            f"Step '{step.type}': Garmin supports 2 targets; "
-            f"{dropped.type} dropped ({', '.join(kept)} kept)"
-        )
-        ordered = ordered[:2]
+    if len(ordered) > _GARMIN_MAX_TARGETS:
+        dropped = ordered[_GARMIN_MAX_TARGETS:]
+        kept = [t.type for t in ordered[:_GARMIN_MAX_TARGETS]]
+        for drop in dropped:
+            warnings.append(
+                f"Step '{step.type}': Garmin supports {_GARMIN_MAX_TARGETS} targets; "
+                f"{drop.type} dropped ({', '.join(kept)} kept)"
+            )
+        ordered = ordered[:_GARMIN_MAX_TARGETS]
 
     end_condition = _END_CONDITION_BY_TYPE.get(
         step.duration_type, _END_CONDITION_BY_TYPE["time"]
@@ -176,6 +189,12 @@ class GarminWorkoutAdapter(PayloadAdapter):
 
     def to_payload(self, plan: WorkoutPlan) -> AdapterResult:
         warnings: list[str] = []
+        expanded = _count_expanded(plan.steps)
+        if expanded > _GARMIN_MAX_STEPS:
+            warnings.append(
+                f"Expanded step count {expanded} exceeds Garmin limit "
+                f"of {_GARMIN_MAX_STEPS} steps"
+            )
         sport = _SPORT_TYPE.get(
             plan.sport,
             {"sportTypeId": 8, "sportTypeKey": plan.sport, "displayOrder": 8},
