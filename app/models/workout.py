@@ -21,6 +21,7 @@ class WorkoutStep:
     type: str
     duration_seconds: int
     targets: tuple[Target, ...]
+    name: str = ""
 
 
 @dataclass(frozen=True)
