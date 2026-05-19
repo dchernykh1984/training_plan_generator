@@ -110,21 +110,33 @@ poetry run pre-commit run --all-files
 
 ## Usage
 
+### Templates
+
+Ready-to-edit starting points in the `templates/` folder:
+
+| File | Description |
+|---|---|
+| [`templates/workout_garmin.json`](templates/workout_garmin.json) | Workout plan template (warmup, repeat block, cooldown; all target types) |
+| [`templates/credentials.json`](templates/credentials.json) | JSON credentials file template for Garmin Connect |
+| [`templates/keepass_entry.md`](templates/keepass_entry.md) | Guide for setting up the KeePass entry (Title, URL, Username, Password) |
+
 ### Upload to Garmin Connect
 
+Copy and fill in the templates, then run:
+
 ```bash
 poetry run training-plan-generator upload \
-  --plan examples/cycling_intervals.json \
+  --plan templates/workout_garmin.json \
   --connector garmin \
   --credentials-provider json \
-  --creds-json /path/to/credentials.json
+  --creds-json templates/credentials.json
 ```
 
-Or with KeePass:
+Or with KeePass (see [`templates/keepass_entry.md`](templates/keepass_entry.md) for entry setup):
 
 ```bash
 poetry run training-plan-generator upload \
-  --plan examples/cycling_intervals.json \
+  --plan templates/workout_garmin.json \
   --connector garmin \
   --credentials-provider keepass \
   --creds-keepass /path/to/database.kdbx
@@ -234,6 +246,9 @@ when they encounter unsupported optional parameters:
 Warnings are printed to stdout and written to the run log by the CLI.
 
 ### JSON credentials file format
+
+See [`templates/credentials.json`](templates/credentials.json) for a ready-to-edit copy.
+The file is a JSON array - one object per service:
 
 ```json
 [
