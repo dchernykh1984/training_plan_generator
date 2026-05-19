@@ -393,6 +393,69 @@ def test_segment_contains_sport_type():
     assert segment["sportType"]["sportTypeId"] == 2
 
 
+def test_duration_type_time_end_condition():
+    plan = parse_workout(_plan(steps=[{"type": "interval", "duration_seconds": 300}]))
+    step = _first_step(_adapter().to_payload(plan))
+    assert step["endCondition"]["conditionTypeKey"] == "time"
+    assert step["endConditionValue"] == 300.0
+
+
+def test_duration_type_distance_end_condition():
+    plan = parse_workout(
+        _plan(
+            steps=[
+                {
+                    "type": "interval",
+                    "duration_seconds": 1000,
+                    "duration_type": "distance",
+                }
+            ]
+        )
+    )
+    step = _first_step(_adapter().to_payload(plan))
+    assert step["endCondition"]["conditionTypeKey"] == "distance"
+    assert step["endConditionValue"] == 1000.0
+
+
+def test_duration_type_open_end_condition():
+    plan = parse_workout(_plan(steps=[{"type": "rest", "duration_type": "open"}]))
+    step = _first_step(_adapter().to_payload(plan))
+    assert step["endCondition"]["conditionTypeKey"] == "lap.button"
+    assert step["endConditionValue"] is None
+
+
+def test_total_duration_excludes_open_steps():
+    plan = parse_workout(
+        _plan(
+            steps=[
+                {"type": "warmup", "duration_seconds": 600},
+                {"type": "rest", "duration_type": "open"},
+                {"type": "cooldown", "duration_seconds": 300},
+            ]
+        )
+    )
+    payload = _adapter().to_payload(plan).payload
+    assert payload["estimatedDurationInSecs"] == 900
+
+
+def test_total_duration_excludes_distance_steps():
+    plan = parse_workout(
+        _plan(
+            steps=[
+                {"type": "warmup", "duration_seconds": 600},
+                {
+                    "type": "interval",
+                    "duration_seconds": 1000,
+                    "duration_type": "distance",
+                },
+                {"type": "cooldown", "duration_seconds": 300},
+            ]
+        )
+    )
+    payload = _adapter().to_payload(plan).payload
+    assert payload["estimatedDurationInSecs"] == 900
+
+
 def test_step_description_present_when_name_set():
     plan = parse_workout(
         _plan(steps=[{"type": "warmup", "duration_seconds": 300, "name": "Z1 Warm Up"}])

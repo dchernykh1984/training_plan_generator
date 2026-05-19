@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 
 from app.models.workout import (
+    SUPPORTED_DURATION_TYPES,
     SUPPORTED_SPORTS,
     SUPPORTED_STEP_TYPES,
     SUPPORTED_TARGET_TYPES,
@@ -64,6 +65,32 @@ def _parse_target(data: dict) -> Target:
     return Target(type=target_type, low=low_f, high=high_f)
 
 
+def _parse_duration(
+    step_type: str, duration_type: str, raw_duration: object
+) -> int | None:
+    if duration_type not in SUPPORTED_DURATION_TYPES:
+        raise ValueError(
+            f"Step {step_type!r} unknown duration_type: {duration_type!r}. "
+            f"Supported: {sorted(SUPPORTED_DURATION_TYPES)}"
+        )
+    if duration_type == "open":
+        if isinstance(raw_duration, bool):
+            raise ValueError(
+                f"Step {step_type!r} 'duration_seconds' must be absent or null "
+                f"for duration_type='open', got bool"
+            )
+        if raw_duration is not None and raw_duration != 0:
+            raise ValueError(
+                f"Step {step_type!r} 'duration_seconds' must be absent or null "
+                f"for duration_type='open'"
+            )
+        # 0 is treated the same as absent/null for "open" steps
+        return None
+    if raw_duration is None:
+        raise ValueError(f"Step {step_type!r} missing 'duration_seconds'")
+    return _require_positive_int(raw_duration, "duration_seconds")
+
+
 def _parse_repeat_step(data: dict, depth: int = 0) -> RepeatStep:
     if depth >= 1:
         raise ValueError(
@@ -90,6 +117,10 @@ def _parse_step(data: dict, depth: int = 0) -> WorkoutStep | RepeatStep:
     step_type = data.get("type")
     if step_type == "repeat":
         return _parse_repeat_step(data, depth=depth)
+    if not isinstance(step_type, str):
+        raise ValueError(
+            f"step type must be a string, got {type(step_type).__name__!r}"
+        )
     if step_type not in SUPPORTED_STEP_TYPES:
         supported = sorted(SUPPORTED_STEP_TYPES)
         raise ValueError(f"Unknown step type: {step_type!r}. Supported: {supported}")
@@ -97,10 +128,10 @@ def _parse_step(data: dict, depth: int = 0) -> WorkoutStep | RepeatStep:
     if not isinstance(raw_name, str):
         raise ValueError(f"Step {step_type!r} 'name' must be a string")
     name = raw_name.strip()
-    duration = data.get("duration_seconds")
-    if duration is None:
-        raise ValueError(f"Step {step_type!r} missing 'duration_seconds'")
-    duration_i = _require_positive_int(duration, "duration_seconds")
+    duration_type = data.get("duration_type", "time")
+    if not isinstance(duration_type, str):
+        raise ValueError(f"Step {step_type!r} 'duration_type' must be a string")
+    duration_i = _parse_duration(step_type, duration_type, data.get("duration_seconds"))
     raw_targets = data.get("targets", [])
     if not isinstance(raw_targets, list):
         raise ValueError(f"Step {step_type!r} 'targets' must be a list")
@@ -115,6 +146,7 @@ def _parse_step(data: dict, depth: int = 0) -> WorkoutStep | RepeatStep:
         duration_seconds=duration_i,
         targets=targets,
         name=name,
+        duration_type=duration_type,
     )
 
 

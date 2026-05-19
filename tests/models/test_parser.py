@@ -102,6 +102,18 @@ def test_unknown_step_type_raises():
         parse_workout(data)
 
 
+def test_step_type_list_raises():
+    data = _plan(steps=[{"type": [], "duration_seconds": 60}])
+    with pytest.raises(ValueError, match="step type"):
+        parse_workout(data)
+
+
+def test_step_type_dict_raises():
+    data = _plan(steps=[{"type": {}, "duration_seconds": 60}])
+    with pytest.raises(ValueError, match="step type"):
+        parse_workout(data)
+
+
 def test_missing_duration_raises():
     data = _plan(steps=[{"type": "interval"}])
     with pytest.raises(ValueError, match="duration_seconds"):
@@ -520,6 +532,102 @@ def test_target_integral_float_accepted():
     plan = parse_workout(_step_with_target(200.0, 250.0))
     assert plan.steps[0].targets[0].low == 200.0
     assert plan.steps[0].targets[0].high == 250.0
+
+
+# --- duration_type ---
+
+
+def test_duration_type_defaults_to_time():
+    plan = parse_workout(_plan())
+    assert plan.steps[0].duration_type == "time"
+
+
+def test_duration_type_distance_accepted():
+    data = _plan(
+        steps=[
+            {"type": "interval", "duration_seconds": 1000, "duration_type": "distance"}
+        ]
+    )
+    plan = parse_workout(data)
+    assert plan.steps[0].duration_type == "distance"
+    assert plan.steps[0].duration_seconds == 1000
+
+
+def test_duration_type_open_no_duration_accepted():
+    data = _plan(steps=[{"type": "rest", "duration_type": "open"}])
+    plan = parse_workout(data)
+    assert plan.steps[0].duration_type == "open"
+    assert plan.steps[0].duration_seconds is None
+
+
+def test_duration_type_open_explicit_null_accepted():
+    data = _plan(
+        steps=[{"type": "rest", "duration_type": "open", "duration_seconds": None}]
+    )
+    plan = parse_workout(data)
+    assert plan.steps[0].duration_seconds is None
+
+
+def test_duration_type_open_zero_accepted():
+    data = _plan(
+        steps=[{"type": "rest", "duration_type": "open", "duration_seconds": 0}]
+    )
+    plan = parse_workout(data)
+    assert plan.steps[0].duration_seconds is None
+
+
+def test_duration_type_open_false_raises():
+    data = _plan(
+        steps=[{"type": "rest", "duration_type": "open", "duration_seconds": False}]
+    )
+    with pytest.raises(ValueError, match="got bool"):
+        parse_workout(data)
+
+
+def test_duration_type_open_positive_raises():
+    data = _plan(
+        steps=[{"type": "rest", "duration_type": "open", "duration_seconds": 60}]
+    )
+    with pytest.raises(ValueError, match="absent or null"):
+        parse_workout(data)
+
+
+def test_duration_type_invalid_raises():
+    data = _plan(
+        steps=[
+            {"type": "interval", "duration_seconds": 300, "duration_type": "calories"}
+        ]
+    )
+    with pytest.raises(ValueError, match="unknown duration_type"):
+        parse_workout(data)
+
+
+def test_duration_type_list_raises():
+    data = _plan(
+        steps=[{"type": "warmup", "duration_seconds": 60, "duration_type": []}]
+    )
+    with pytest.raises(ValueError, match="'duration_type' must be a string"):
+        parse_workout(data)
+
+
+def test_duration_type_dict_raises():
+    data = _plan(
+        steps=[{"type": "warmup", "duration_seconds": 60, "duration_type": {}}]
+    )
+    with pytest.raises(ValueError, match="'duration_type' must be a string"):
+        parse_workout(data)
+
+
+def test_duration_type_time_missing_duration_raises():
+    data = _plan(steps=[{"type": "interval", "duration_type": "time"}])
+    with pytest.raises(ValueError, match="duration_seconds"):
+        parse_workout(data)
+
+
+def test_duration_type_distance_missing_duration_raises():
+    data = _plan(steps=[{"type": "interval", "duration_type": "distance"}])
+    with pytest.raises(ValueError, match="duration_seconds"):
+        parse_workout(data)
 
 
 # --- step name ---
