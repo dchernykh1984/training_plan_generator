@@ -16,12 +16,16 @@ class Target:
     high: float
 
 
+SUPPORTED_DURATION_TYPES: frozenset[str] = frozenset({"time", "distance", "open"})
+
+
 @dataclass(frozen=True)
 class WorkoutStep:
     type: str
-    duration_seconds: int
+    duration_seconds: int | None
     targets: tuple[Target, ...]
     name: str = ""
+    duration_type: str = "time"
 
 
 @dataclass(frozen=True)

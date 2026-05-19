@@ -40,11 +40,25 @@ _NO_TARGET: dict = {
     "displayOrder": 1,
 }
 
-_END_CONDITION: dict = {
-    "conditionTypeId": 2,
-    "conditionTypeKey": "time",
-    "displayOrder": 2,
-    "displayable": True,
+_END_CONDITION_BY_TYPE: dict[str, dict] = {
+    "time": {
+        "conditionTypeId": 2,
+        "conditionTypeKey": "time",
+        "displayOrder": 2,
+        "displayable": True,
+    },
+    "distance": {
+        "conditionTypeId": 3,
+        "conditionTypeKey": "distance",
+        "displayOrder": 3,
+        "displayable": True,
+    },
+    "open": {
+        "conditionTypeId": 1,
+        "conditionTypeKey": "lap.button",
+        "displayOrder": 1,
+        "displayable": True,
+    },
 }
 
 _TARGET_PRIORITY: list[str] = ["power", "heart_rate", "cadence"]
@@ -81,12 +95,18 @@ def _build_step_payload(
         )
         ordered = ordered[:2]
 
+    end_condition = _END_CONDITION_BY_TYPE.get(
+        step.duration_type, _END_CONDITION_BY_TYPE["time"]
+    )
+    end_value = (
+        float(step.duration_seconds) if step.duration_seconds is not None else None
+    )
     payload: dict = {
         "type": "ExecutableStepDTO",
         "stepOrder": step_order,
         "stepType": _STEP_TYPE.get(step.type, _STEP_TYPE["interval"]),
-        "endCondition": _END_CONDITION,
-        "endConditionValue": float(step.duration_seconds),
+        "endCondition": end_condition,
+        "endConditionValue": end_value,
     }
     if step.name:
         payload["stepDescription"] = step.name
@@ -144,7 +164,7 @@ def _total_duration(steps: tuple) -> int:
     for step in steps:
         if isinstance(step, RepeatStep):
             total += step.count * _total_duration(step.steps)
-        else:
+        elif step.duration_type == "time" and step.duration_seconds is not None:
             total += step.duration_seconds
     return total
 
