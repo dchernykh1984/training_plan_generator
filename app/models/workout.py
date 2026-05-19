@@ -39,3 +39,7 @@ class WorkoutPlan:
     name: str
     sport: str
     steps: tuple[WorkoutStep | RepeatStep, ...]
+    description: str = ""
+    estimated_tss: float | None = None
+    # reserved for percent_ftp target conversion (task 2.8)
+    ftp_watts: int | None = None

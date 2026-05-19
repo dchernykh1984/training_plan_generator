@@ -96,6 +96,16 @@ def test_invalid_sport_raises():
         parse_workout(_plan(sport="skateboarding"))
 
 
+def test_sport_list_raises():
+    with pytest.raises(ValueError, match="sport"):
+        parse_workout(_plan(sport=[]))
+
+
+def test_sport_dict_raises():
+    with pytest.raises(ValueError, match="sport"):
+        parse_workout(_plan(sport={}))
+
+
 def test_unknown_step_type_raises():
     data = _plan(steps=[{"type": "sprint", "duration_seconds": 300}])
     with pytest.raises(ValueError, match="step type"):
@@ -659,6 +669,96 @@ def test_duration_type_distance_missing_duration_raises():
 
 
 # --- step name ---
+
+
+def test_plan_description_defaults_to_empty():
+    plan = parse_workout(_plan())
+    assert plan.description == ""
+
+
+def test_plan_description_parsed():
+    plan = parse_workout(_plan(description="Hard intervals"))
+    assert plan.description == "Hard intervals"
+
+
+def test_plan_description_nonstring_raises():
+    with pytest.raises(ValueError, match="'description' must be a string"):
+        parse_workout(_plan(description=123))
+
+
+def test_plan_estimated_tss_defaults_to_none():
+    plan = parse_workout(_plan())
+    assert plan.estimated_tss is None
+
+
+def test_plan_estimated_tss_parsed():
+    plan = parse_workout(_plan(estimated_tss=85.5))
+    assert plan.estimated_tss == 85.5
+
+
+def test_plan_estimated_tss_zero_accepted():
+    plan = parse_workout(_plan(estimated_tss=0))
+    assert plan.estimated_tss == 0.0
+
+
+def test_plan_estimated_tss_negative_raises():
+    with pytest.raises(ValueError, match="non-negative"):
+        parse_workout(_plan(estimated_tss=-1))
+
+
+def test_plan_estimated_tss_nan_raises():
+    with pytest.raises(ValueError, match="finite"):
+        parse_workout(_plan(estimated_tss=float("nan")))
+
+
+def test_plan_estimated_tss_inf_raises():
+    with pytest.raises(ValueError, match="finite"):
+        parse_workout(_plan(estimated_tss=float("inf")))
+
+
+def test_plan_estimated_tss_string_raises():
+    with pytest.raises(ValueError, match="non-negative number"):
+        parse_workout(_plan(estimated_tss="high"))
+
+
+def test_plan_estimated_tss_bool_raises():
+    with pytest.raises(ValueError, match="got bool"):
+        parse_workout(_plan(estimated_tss=True))
+
+
+def test_plan_ftp_watts_defaults_to_none():
+    plan = parse_workout(_plan())
+    assert plan.ftp_watts is None
+
+
+def test_plan_ftp_watts_parsed():
+    plan = parse_workout(_plan(ftp_watts=280))
+    assert plan.ftp_watts == 280
+
+
+def test_plan_ftp_watts_integral_float_accepted():
+    plan = parse_workout(_plan(ftp_watts=280.0))
+    assert plan.ftp_watts == 280
+
+
+def test_plan_ftp_watts_zero_raises():
+    with pytest.raises(ValueError, match="positive"):
+        parse_workout(_plan(ftp_watts=0))
+
+
+def test_plan_ftp_watts_fractional_raises():
+    with pytest.raises(ValueError, match="positive integer"):
+        parse_workout(_plan(ftp_watts=100.5))
+
+
+def test_plan_ftp_watts_bool_raises():
+    with pytest.raises(ValueError, match="got bool"):
+        parse_workout(_plan(ftp_watts=True))
+
+
+def test_plan_ftp_watts_string_raises():
+    with pytest.raises(ValueError, match="positive integer"):
+        parse_workout(_plan(ftp_watts="280"))
 
 
 def test_step_name_defaults_to_empty():

@@ -501,6 +501,18 @@ def test_expanded_step_count_exceeds_limit_warning():
     assert any("exceeds Garmin limit" in w for w in result.warnings)
 
 
+def test_plan_description_in_payload():
+    plan = parse_workout(_plan(description="Hard session"))
+    payload = _adapter().to_payload(plan).payload
+    assert payload["description"] == "Hard session"
+
+
+def test_plan_description_absent_when_empty():
+    plan = parse_workout(_plan())
+    payload = _adapter().to_payload(plan).payload
+    assert "description" not in payload
+
+
 def test_step_description_present_when_name_set():
     plan = parse_workout(
         _plan(steps=[{"type": "warmup", "duration_seconds": 300, "name": "Z1 Warm Up"}])

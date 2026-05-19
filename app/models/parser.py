@@ -173,6 +173,27 @@ def _parse_step(data: dict, depth: int = 0) -> WorkoutStep | RepeatStep:
     )
 
 
+def _parse_estimated_tss(raw: object) -> float | None:
+    if raw is None:
+        return None
+    if isinstance(raw, bool):
+        raise ValueError("Plan 'estimated_tss' must be a non-negative number, got bool")
+    if not isinstance(raw, (int, float)):
+        raise ValueError("Plan 'estimated_tss' must be a non-negative number")
+    value = float(raw)
+    if not math.isfinite(value):
+        raise ValueError("Plan 'estimated_tss' must be a finite number")
+    if value < 0:
+        raise ValueError("Plan 'estimated_tss' must be non-negative")
+    return value
+
+
+def _parse_ftp_watts(raw: object) -> int | None:
+    if raw is None:
+        return None
+    return _require_positive_int(raw, "ftp_watts")
+
+
 def parse_workout(data: dict) -> WorkoutPlan:
     if not isinstance(data, dict):
         raise ValueError(f"Plan must be a JSON object, got {type(data).__name__!r}")
@@ -182,6 +203,8 @@ def parse_workout(data: dict) -> WorkoutPlan:
     if not name.strip():
         raise ValueError("Plan 'name' must not be empty or whitespace-only")
     sport = data.get("sport")
+    if not isinstance(sport, str):
+        raise ValueError(f"Plan 'sport' must be a string, got {type(sport).__name__!r}")
     if sport not in SUPPORTED_SPORTS:
         raise ValueError(
             f"Unknown sport: {sport!r}. Supported: {sorted(SUPPORTED_SPORTS)}"
@@ -191,8 +214,17 @@ def parse_workout(data: dict) -> WorkoutPlan:
         raise ValueError("Plan missing 'steps'")
     if not isinstance(steps, list):
         raise ValueError("Plan 'steps' must be a list")
+    raw_desc = data.get("description", "")
+    if not isinstance(raw_desc, str):
+        raise ValueError("Plan 'description' must be a string")
+    description = raw_desc.strip()
+    estimated_tss = _parse_estimated_tss(data.get("estimated_tss"))
+    ftp_watts = _parse_ftp_watts(data.get("ftp_watts"))
     return WorkoutPlan(
         name=name,
         sport=sport,
         steps=tuple(_parse_step(s) for s in steps),
+        description=description,
+        estimated_tss=estimated_tss,
+        ftp_watts=ftp_watts,
     )

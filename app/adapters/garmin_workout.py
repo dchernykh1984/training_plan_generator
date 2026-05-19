@@ -201,7 +201,7 @@ class GarminWorkoutAdapter(PayloadAdapter):
         )
         counter = [1]
         steps = _build_steps_payload(plan.steps, counter, warnings)
-        payload = {
+        payload: dict = {
             "workoutName": plan.name,
             "sportType": sport,
             "estimatedDurationInSecs": _total_duration(plan.steps),
@@ -213,4 +213,6 @@ class GarminWorkoutAdapter(PayloadAdapter):
                 }
             ],
         }
+        if plan.description:
+            payload["description"] = plan.description
         return AdapterResult(payload=payload, warnings=warnings)
