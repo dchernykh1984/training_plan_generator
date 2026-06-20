@@ -31,6 +31,11 @@ default-groups = "all"
 module-name = ["app"]
 module-root = ""
 
+# Build the project with uv's backend so its console script (project.scripts) installs under uv.
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
+
 [tool.ruff]
 line-length = 88
 
