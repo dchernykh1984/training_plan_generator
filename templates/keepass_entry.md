@@ -19,7 +19,7 @@ The **URL** is matched as a substring, so `https://connect.garmin.com` and
 ## Usage
 
 ```bash
-poetry run training-plan-generator upload \
+uv run training-plan-generator upload \
   --plan templates/workout_garmin.json \
   --connector garmin \
   --credentials-provider keepass \
@@ -36,7 +36,7 @@ The master password is read from:
 If you have more than one Garmin entry in the database, use `--login` to pick the right one:
 
 ```bash
-poetry run training-plan-generator upload \
+uv run training-plan-generator upload \
   --plan templates/workout_garmin.json \
   --connector garmin \
   --credentials-provider keepass \
