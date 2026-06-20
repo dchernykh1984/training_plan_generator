@@ -23,7 +23,7 @@ All subsequent commands should be run from the `training_plan_generator` folder.
 
 ### 2. Install Python 3.14
 
-This project requires **Python 3.14**. Installing a different version will result in an error when running `poetry install`.
+This project requires **Python 3.14**; `uv` installs a matching interpreter automatically, but you can also install it yourself as shown below.
 
 **macOS**
 
@@ -54,50 +54,35 @@ Verify the installation in a terminal:
 
 The output should start with `Python 3.14`.
 
-### 3. Install Poetry
+### 3. Install uv
 
-**macOS**
-
-```bash
-brew install pipx
-pipx ensurepath
-pipx install poetry
-```
-
-**Linux (Ubuntu / Debian)**
+**macOS / Linux**
 
 ```bash
-pip3 install pipx
-pipx ensurepath
-pipx install poetry
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
-
-Restart your terminal after running `pipx ensurepath`.
 
 **Windows**
 
-Open **Command Prompt** or **PowerShell** and run:
+Open **PowerShell** and run:
 
 ```powershell
-pip install pipx
-pipx ensurepath
-pipx install poetry
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-Restart your terminal after running `pipx ensurepath`.
+Restart your terminal afterwards so `uv` is on your `PATH`.
 
 ### 4. Create virtual environment and install dependencies
 
 ```bash
-poetry config virtualenvs.in-project true
-poetry install
+uv sync
 ```
 
 ### 5. Set up pre-commit hooks
 
 ```bash
-poetry run pre-commit install
-poetry run pre-commit install --hook-type commit-msg
+uv run pre-commit install
+uv run pre-commit install --hook-type commit-msg
 ```
 
 After that pre-commit hooks will run automatically on every commit.
@@ -105,7 +90,7 @@ After that pre-commit hooks will run automatically on every commit.
 To run all checks manually across all files:
 
 ```bash
-poetry run pre-commit run --all-files
+uv run pre-commit run --all-files
 ```
 
 ## Usage
@@ -125,7 +110,7 @@ Ready-to-edit starting points in the `templates/` folder:
 Copy and fill in the templates, then run:
 
 ```bash
-poetry run training-plan-generator upload \
+uv run training-plan-generator upload \
   --plan templates/workout_garmin.json \
   --connector garmin \
   --credentials-provider json \
@@ -135,7 +120,7 @@ poetry run training-plan-generator upload \
 Or with KeePass (see [`templates/keepass_entry.md`](templates/keepass_entry.md) for entry setup):
 
 ```bash
-poetry run training-plan-generator upload \
+uv run training-plan-generator upload \
   --plan templates/workout_garmin.json \
   --connector garmin \
   --credentials-provider keepass \
@@ -149,7 +134,7 @@ Use `--login` to select a specific account when the credentials store has more t
 entry for the same service:
 
 ```bash
-poetry run training-plan-generator upload \
+uv run training-plan-generator upload \
   --plan templates/workout_garmin.json \
   --connector garmin \
   --credentials-provider keepass \
