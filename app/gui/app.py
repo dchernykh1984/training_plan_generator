@@ -80,6 +80,7 @@ class UploadWorker(QThread):
         self._credential_login = credential_login or None
         self._cache_dir = cache_dir
         self._source_bytes: bytes | None = None
+        self._kp_providers: dict[str, CredentialProvider] = {}
 
     def run(self) -> None:
         try:
@@ -87,6 +88,10 @@ class UploadWorker(QThread):
         except Exception as exc:
             self.log_line.emit(f"[ERROR] Unexpected error: {exc}")
             rc = 1
+        finally:
+            # Drop the master passwords as soon as this upload is over.
+            self._keepass_passwords.clear()
+            self._kp_providers.clear()
         self.finished.emit(rc)
 
     # ------------------------------------------------------------------
@@ -214,8 +219,8 @@ class UploadWorker(QThread):
                     f"No credential found for service={request.service!r}"
                 )
             if entry.source == "keepass":
-                provider = _keepass_provider_cached(
-                    entry.keepass_path, self._keepass_passwords
+                provider = _keepass_provider(
+                    entry.keepass_path, self._keepass_passwords, self._kp_providers
                 )
                 kp_request = CredentialRequest(
                     service=request.service,
@@ -243,20 +248,25 @@ def _find_credential(
     return matches[0] if matches else None
 
 
-_keepass_cache: dict[str, CredentialProvider] = {}
-
-
-def _keepass_provider_cached(
-    path: str, passwords: dict[str, str]
+def _keepass_provider(
+    path: str,
+    passwords: dict[str, str],
+    cache: dict[str, CredentialProvider],
 ) -> CredentialProvider:
-    if path not in _keepass_cache:
+    """Build (or reuse) a KeePass provider for ``path``.
+
+    ``cache`` is owned by a single UploadWorker, so one master password is
+    requested per .kdbx file per upload and is discarded once that upload
+    finishes - it is never held in a module-level global.
+    """
+    if path not in cache:
         from app.credentials.keepass import KeePassProvider
 
-        _keepass_cache[path] = KeePassProvider(
+        cache[path] = KeePassProvider(
             path=Path(path).expanduser(),
             password=passwords.get(path, ""),
         )
-    return _keepass_cache[path]
+    return cache[path]
 
 
 # ---------------------------------------------------------------------------
