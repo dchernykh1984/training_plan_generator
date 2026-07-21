@@ -809,6 +809,49 @@ def test_upload_worker_saves_one_source_snapshot_per_run(qtbot, tmp_path: Path) 
     assert sources == ["multi.source.json"]
 
 
+def test_upload_worker_keepass_request_uses_connector_name_as_url(
+    qtbot, tmp_path: Path, monkeypatch
+) -> None:
+    """A KeePass entry whose URL is shorter than the stored one must still match.
+
+    The provider matches request.url as a substring of the entry URL, so the
+    GUI has to send the connector name just like the CLI does.
+    """
+    from app.credentials.base import CredentialRequest
+
+    seen: list[CredentialRequest] = []
+
+    class _Provider:
+        def get(self, request):
+            seen.append(request)
+            from app.credentials.base import Credentials
+
+            return Credentials(login="kp@x", password="kp-pw")
+
+    monkeypatch.setattr("app.gui.app._keepass_provider", lambda *a: _Provider())
+
+    kp_cred = CredentialEntry(
+        service="garmin",
+        url="https://connect.garmin.com",
+        login="kp@x",
+        source="keepass",
+        keepass_path="/db.kdbx",
+    )
+    plan = _plan_file(tmp_path, _VALID_PLAN)
+    connector = MagicMock()
+    connector.upload.return_value = "w-1"
+    with patch("app.connectors.registry.get_connector", return_value=connector):
+        _, results = _run_worker(
+            qtbot,
+            _worker(plan, tmp_path, targets=[ResolvedTarget("garmin", kp_cred)]),
+        )
+
+    assert results == [0]
+    assert seen[0].url == "garmin"
+    assert seen[0].service == "garmin"
+    assert seen[0].login == "kp@x"
+
+
 def test_upload_worker_clears_keepass_passwords_after_run(
     qtbot, tmp_path: Path
 ) -> None:

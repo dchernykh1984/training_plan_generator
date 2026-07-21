@@ -238,9 +238,13 @@ class UploadWorker(QThread):
                 provider = _keepass_provider(
                     entry.keepass_path, self._keepass_passwords, self._kp_providers
                 )
+                # The provider matches request.url as a *substring* of the
+                # KeePass entry URL, so pass the connector name here exactly
+                # like the CLI does. Passing the full stored URL would reject
+                # entries whose URL is shorter (e.g. "connect.garmin.com").
                 request = CredentialRequest(
                     service=entry.service,
-                    url=entry.url or target.connector,
+                    url=target.connector,
                     login=entry.login or None,
                 )
                 return provider.get(request)
