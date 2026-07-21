@@ -692,6 +692,7 @@ class UploadTab(QWidget):
 
     def _on_log_line(self, line: str) -> None:
         self._log.append(line)
+        self._log.verticalScrollBar().setValue(self._log.verticalScrollBar().maximum())
 
     def _on_finished(self, rc: int) -> None:
         self._upload_btn.setEnabled(True)
