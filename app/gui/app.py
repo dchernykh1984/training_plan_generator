@@ -79,6 +79,7 @@ class UploadWorker(QThread):
         self._credential_service = credential_service
         self._credential_login = credential_login or None
         self._cache_dir = cache_dir
+        self._source_bytes: bytes | None = None
 
     def run(self) -> None:
         try:
@@ -145,7 +146,7 @@ class UploadWorker(QThread):
         payload_path = cache.save_connector_payload(
             plan.name, self._connector_name, payload
         )
-        cache.save_source_plan(plan.name, Path(self._plan_path).read_bytes())
+        cache.save_source_plan(plan.name, self._source_bytes or b"")
         self.log_line.emit(f"Done. Cached payload: {payload_path}")
         self.log_line.emit(f"Log: {self._cache_dir / 'training_plan_generator.log'}")
         return 0
@@ -160,6 +161,7 @@ class UploadWorker(QThread):
             self.log_line.emit(f"[ERROR] {exc}")
             log.error(f"plan read error: {exc}")
             return None
+        self._source_bytes = source_bytes
 
         try:
             plans = parse_workout_file(json.loads(source_bytes))
