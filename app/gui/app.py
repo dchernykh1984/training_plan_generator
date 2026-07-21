@@ -300,6 +300,41 @@ def _keepass_paths(credentials: list[CredentialEntry]) -> list[str]:
     return paths
 
 
+def check_credential(
+    entry: CredentialEntry, keepass_password: str = ""
+) -> tuple[bool, str]:
+    """Resolve a credential without uploading anything.
+
+    Returns ``(ok, message)``. For KeePass entries this opens the database and
+    searches for the entry by Title, which is what catches a Title that does
+    not match. The URL filter is left empty so the check reports on the Title
+    and login alone, independently of which connector will later use it.
+    """
+    if entry.source != "keepass":
+        if not entry.login:
+            return False, "No login set."
+        if not entry.password:
+            return False, "No password set."
+        return True, f"Login {entry.login!r} and password are set."
+
+    if not entry.keepass_path:
+        return False, "No KeePass file set."
+
+    from app.credentials.base import CredentialRequest
+
+    provider = _keepass_provider(
+        entry.keepass_path, {entry.keepass_path: keepass_password}, {}
+    )
+    request = CredentialRequest(
+        service=entry.service, url="", login=entry.login or None
+    )
+    try:
+        creds = provider.get(request)
+    except Exception as exc:
+        return False, str(exc)
+    return True, f"Found KeePass entry for login {creds.login!r}."
+
+
 # ---------------------------------------------------------------------------
 # CredentialDialog
 # ---------------------------------------------------------------------------
@@ -460,8 +495,14 @@ class CredentialsTab(QWidget):
         self._add_btn = QPushButton("Add")
         self._edit_btn = QPushButton("Edit")
         self._delete_btn = QPushButton("Delete")
+        self._test_btn = QPushButton("Test")
         self._load_btn = QPushButton("Load from file...")
-        for btn in (self._add_btn, self._edit_btn, self._delete_btn):
+        for btn in (
+            self._add_btn,
+            self._edit_btn,
+            self._delete_btn,
+            self._test_btn,
+        ):
             btn_row.addWidget(btn)
         btn_row.addStretch()
         btn_row.addWidget(self._load_btn)
@@ -470,6 +511,7 @@ class CredentialsTab(QWidget):
         self._add_btn.clicked.connect(self._add)
         self._edit_btn.clicked.connect(self._edit)
         self._delete_btn.clicked.connect(self._delete)
+        self._test_btn.clicked.connect(self._test)
         self._load_btn.clicked.connect(self._load_from_file)
 
         self._refresh_table()
@@ -535,6 +577,29 @@ class CredentialsTab(QWidget):
             self._entries.pop(row)
             self._store.save_credentials(self._entries)
             self._refresh_table()
+
+    def _test(self) -> None:
+        row = self._table.currentRow()
+        if row < 0:
+            return
+        entry = self._entries[row]
+
+        password = ""
+        if entry.source == "keepass":
+            password, ok = QInputDialog.getText(
+                self,
+                "KeePass master password",
+                f"Master password for {entry.keepass_path}:",
+                QLineEdit.EchoMode.Password,
+            )
+            if not ok:
+                return
+
+        success, message = check_credential(entry, password)
+        if success:
+            QMessageBox.information(self, "Credential OK", message)
+        else:
+            QMessageBox.warning(self, "Credential failed", message)
 
     def entries(self) -> list[CredentialEntry]:
         return list(self._entries)
