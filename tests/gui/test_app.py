@@ -16,6 +16,7 @@ from app.gui.app import (
     UploadTab,
     UploadWorker,
     _find_credential,
+    _keepass_provider,
     make_app_icon,
 )
 from app.gui.config_store import ConfigStore, CredentialEntry
@@ -81,6 +82,50 @@ def test_find_credential_with_login_filter() -> None:
         [_GARMIN_CRED, other], "garmin", "https://connect.garmin.com", "other@x"
     )
     assert result is other
+
+
+# ---------------------------------------------------------------------------
+# _keepass_provider
+# ---------------------------------------------------------------------------
+
+
+def test_keepass_provider_reused_within_one_cache() -> None:
+    cache: dict = {}
+    first = _keepass_provider("/db.kdbx", {"/db.kdbx": "master"}, cache)
+    second = _keepass_provider("/db.kdbx", {"/db.kdbx": "master"}, cache)
+    assert first is second
+
+
+def test_keepass_provider_not_shared_between_caches() -> None:
+    """A new upload must not reuse a provider built with an earlier password."""
+    from app.credentials.keepass import KeePassProvider
+
+    first = _keepass_provider("/db.kdbx", {"/db.kdbx": "wrong"}, {})
+    second = _keepass_provider("/db.kdbx", {"/db.kdbx": "correct"}, {})
+    assert first is not second
+    assert isinstance(second, KeePassProvider)
+    assert second._password == "correct"
+
+
+def test_upload_worker_clears_keepass_passwords_after_run(
+    qtbot, tmp_path: Path
+) -> None:
+    passwords = {"/db.kdbx": "master"}
+    worker = UploadWorker(
+        plan_path=str(tmp_path / "missing.json"),
+        workout_key=None,
+        connector_name="garmin",
+        credential_entries=[_GARMIN_CRED],
+        keepass_passwords=passwords,
+        credential_service="garmin",
+        credential_login="me@x",
+        cache_dir=tmp_path / "cache",
+    )
+    with qtbot.waitSignal(worker.finished, timeout=5000):
+        worker.start()
+    worker.wait()
+
+    assert passwords == {}
 
 
 # ---------------------------------------------------------------------------
