@@ -1,6 +1,6 @@
 import pytest
 
-from app.models.parser import parse_workout
+from app.models.parser import parse_workout, parse_workout_file
 from app.models.workout import RepeatStep, Target, WorkoutPlan, WorkoutStep
 
 
@@ -872,6 +872,62 @@ def test_nested_repeat_raises():
     )
     with pytest.raises(ValueError, match="Nested repeat"):
         parse_workout(data)
+
+
+# --- parse_workout_file ---
+
+
+def test_parse_workout_file_single_workout_format():
+    data = _plan()
+    result = parse_workout_file(data)
+    assert len(result) == 1
+    assert "Test Plan" in result
+    assert isinstance(result["Test Plan"], WorkoutPlan)
+
+
+def test_parse_workout_file_single_uses_plan_name_as_key():
+    data = _plan(name="My Ride")
+    result = parse_workout_file(data)
+    assert list(result.keys()) == ["My Ride"]
+
+
+def test_parse_workout_file_dict_format():
+    data = {
+        "morning": _plan(name="Morning Ride"),
+        "evening": _plan(name="Evening Run", sport="running"),
+    }
+    result = parse_workout_file(data)
+    assert set(result.keys()) == {"morning", "evening"}
+    assert result["morning"].name == "Morning Ride"
+    assert result["evening"].sport == "running"
+
+
+def test_parse_workout_file_dict_single_entry():
+    data = {"only": _plan(name="Solo")}
+    result = parse_workout_file(data)
+    assert list(result.keys()) == ["only"]
+    assert result["only"].name == "Solo"
+
+
+def test_parse_workout_file_not_a_dict_raises():
+    with pytest.raises(ValueError, match="JSON object"):
+        parse_workout_file(["not", "a", "dict"])
+
+
+def test_parse_workout_file_empty_dict_raises():
+    with pytest.raises(ValueError, match="must not be empty"):
+        parse_workout_file({})
+
+
+def test_parse_workout_file_dict_invalid_workout_raises():
+    data = {"bad": {"name": "X", "sport": "cycling"}}  # missing steps
+    with pytest.raises(ValueError, match="steps"):
+        parse_workout_file(data)
+
+
+def test_parse_workout_file_single_invalid_raises():
+    with pytest.raises(ValueError, match="sport"):
+        parse_workout_file(_plan(sport="golf"))
 
 
 def test_triple_nested_repeat_raises():

@@ -46,6 +46,7 @@ def _upload_args(
     creds_keepass=None,
     keepass_password=None,
     login=None,
+    workout_key=None,
 ):
     import argparse
 
@@ -59,6 +60,7 @@ def _upload_args(
         creds_keepass=creds_keepass,
         keepass_password=keepass_password,
         login=login,
+        workout_key=workout_key,
     )
     return ns
 
@@ -346,3 +348,92 @@ def test_upload_login_flag_filters_credentials(tmp_path):
 def test_parser_build_succeeds():
     parser = _build_parser()
     assert parser is not None
+
+
+# --- multi-workout file support ---
+
+_MULTI_PLAN = {
+    "morning": {
+        "name": "Morning Ride",
+        "sport": "cycling",
+        "steps": [{"type": "warmup", "duration_seconds": 300}],
+    },
+    "evening": {
+        "name": "Evening Run",
+        "sport": "running",
+        "steps": [{"type": "cooldown", "duration_seconds": 600}],
+    },
+}
+
+
+def test_upload_multi_workout_with_key_succeeds(tmp_path):
+    creds_file = _write_garmin_creds(tmp_path)
+    plan_file = tmp_path / "multi.json"
+    plan_file.write_text(json.dumps(_MULTI_PLAN))
+    args = _upload_args(
+        tmp_path,
+        plan=plan_file,
+        creds_json=str(creds_file),
+        workout_key="morning",
+    )
+    mock_connector = MagicMock()
+    mock_connector.upload.return_value = "w-multi"
+    with patch("app.cli.get_connector", return_value=mock_connector):
+        result = _cmd_upload(args)
+    assert result == 0
+    mock_connector.upload.assert_called_once()
+
+
+def test_upload_multi_workout_no_key_returns_error(tmp_path):
+    creds_file = _write_garmin_creds(tmp_path)
+    plan_file = tmp_path / "multi.json"
+    plan_file.write_text(json.dumps(_MULTI_PLAN))
+    args = _upload_args(tmp_path, plan=plan_file, creds_json=str(creds_file))
+    result = _cmd_upload(args)
+    assert result == 1
+
+
+def test_upload_multi_workout_wrong_key_returns_error(tmp_path):
+    creds_file = _write_garmin_creds(tmp_path)
+    plan_file = tmp_path / "multi.json"
+    plan_file.write_text(json.dumps(_MULTI_PLAN))
+    args = _upload_args(
+        tmp_path,
+        plan=plan_file,
+        creds_json=str(creds_file),
+        workout_key="nonexistent",
+    )
+    result = _cmd_upload(args)
+    assert result == 1
+
+
+def test_upload_single_workout_ignores_workout_key(tmp_path):
+    creds_file = _write_garmin_creds(tmp_path)
+    args = _upload_args(tmp_path, creds_json=str(creds_file), workout_key="any")
+    mock_connector = MagicMock()
+    mock_connector.upload.return_value = "w-1"
+    with patch("app.cli.get_connector", return_value=mock_connector):
+        result = _cmd_upload(args)
+    assert result == 0
+
+
+def test_parser_accepts_workout_key_flag(tmp_path):
+    parser = _build_parser()
+    creds_file = _write_garmin_creds(tmp_path)
+    plan = _plan_file(tmp_path)
+    args = parser.parse_args(
+        [
+            "upload",
+            "--plan",
+            str(plan),
+            "--connector",
+            "garmin",
+            "--credentials-provider",
+            "json",
+            "--creds-json",
+            str(creds_file),
+            "--workout-key",
+            "morning",
+        ]
+    )
+    assert args.workout_key == "morning"
