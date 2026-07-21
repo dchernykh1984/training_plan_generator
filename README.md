@@ -105,7 +105,37 @@ Ready-to-edit starting points in the `templates/` folder:
 | [`templates/credentials.json`](templates/credentials.json) | JSON credentials file template for Garmin Connect |
 | [`templates/keepass_entry.md`](templates/keepass_entry.md) | Guide for setting up the KeePass entry (Title, URL, Username, Password) |
 
-### Upload to Garmin Connect
+### Graphical interface
+
+Launch the GUI:
+
+```bash
+uv run training-plan-generator-gui
+```
+
+On Linux the Qt runtime needs a few system libraries; install them once if the GUI
+fails to start with a `libEGL.so.1` error:
+
+```bash
+sudo apt install libegl1 libgl1 libxkbcommon0 libdbus-1-3
+```
+
+The window has two tabs:
+
+- **Upload** - pick a plan file, choose a workout (the dropdown lists every workout
+  when the file contains a dict), select connector and credential, then press
+  **Upload**. Progress and warnings appear in the log pane below the button.
+- **Credentials** - add, edit and delete accounts. Each entry is either **manual**
+  (login and password stored locally) or **KeePass** (only the path to the `.kdbx`
+  file is stored).
+
+Credentials and the last-used upload settings are kept in
+`~/.config/training-plan-generator/`. **The KeePass master password is never written
+to disk** - it is requested when an upload starts and held in memory only for that
+run. If several credentials point at the same `.kdbx` file, the password is asked
+once per upload rather than once per credential.
+
+### Command-line upload
 
 Copy and fill in the templates, then run:
 
