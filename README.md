@@ -134,6 +134,8 @@ The window has two tabs:
   tab. Pressing **Upload** sends *every workout in the file* to *every target in the
   table*; progress and warnings appear in the log pane below the button.
 
+Double-clicking a row in either table opens it for editing.
+
 There is no workout picker - the whole file is always uploaded. To upload a subset,
 put those workouts in their own file.
 

@@ -513,6 +513,7 @@ class CredentialsTab(QWidget):
         self._delete_btn.clicked.connect(self._delete)
         self._test_btn.clicked.connect(self._test)
         self._load_btn.clicked.connect(self._load_from_file)
+        self._table.itemDoubleClicked.connect(self._on_row_double_clicked)
 
         self._refresh_table()
 
@@ -577,6 +578,9 @@ class CredentialsTab(QWidget):
             self._entries.pop(row)
             self._store.save_credentials(self._entries)
             self._refresh_table()
+
+    def _on_row_double_clicked(self, _item: QTableWidgetItem) -> None:
+        self._edit()
 
     def _test(self) -> None:
         row = self._table.currentRow()
@@ -746,6 +750,7 @@ class UploadTab(QWidget):
         self._edit_btn.clicked.connect(self._edit_target)
         self._delete_btn.clicked.connect(self._delete_target)
         self._upload_btn.clicked.connect(self._run_upload)
+        self._table.itemDoubleClicked.connect(self._on_row_double_clicked)
 
         self._refresh_table()
 
@@ -802,6 +807,9 @@ class UploadTab(QWidget):
             self._targets.append(dlg.result_target())
             self._store.save_targets(self._targets)
             self._refresh_table()
+
+    def _on_row_double_clicked(self, _item: QTableWidgetItem) -> None:
+        self._edit_target()
 
     def _edit_target(self) -> None:
         row = self._table.currentRow()

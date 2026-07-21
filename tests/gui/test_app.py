@@ -576,6 +576,30 @@ def test_credentials_tab_edit_noop_on_cancel(
     assert store.load_credentials()[0].login == "me@x"
 
 
+def test_credentials_tab_double_click_opens_edit(
+    qtbot, store: ConfigStore, monkeypatch
+) -> None:
+    store.save_credentials([_GARMIN_CRED])
+    tab = CredentialsTab(store)
+    qtbot.addWidget(tab)
+
+    class _AcceptDialog:
+        def __init__(self, *a, **k):
+            pass
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+        def result_entry(self):
+            return CredentialEntry("garmin", "", "edited@x", password="pw")
+
+    monkeypatch.setattr("app.gui.app.CredentialDialog", _AcceptDialog)
+    tab._table.selectRow(0)
+    # Emitting the signal exercises the same path a real double-click takes.
+    tab._table.itemDoubleClicked.emit(tab._table.item(0, 0))
+    assert store.load_credentials()[0].login == "edited@x"
+
+
 def test_credentials_tab_load_from_file(
     qtbot, store: ConfigStore, monkeypatch, tmp_path: Path
 ) -> None:
@@ -758,6 +782,30 @@ def test_upload_tab_edit_target(qtbot, store: ConfigStore, monkeypatch) -> None:
     monkeypatch.setattr("app.gui.app.TargetDialog", _AcceptDialog)
     tab._table.selectRow(0)
     tab._edit_target()
+    assert store.load_targets()[0].credential_login == "other@x"
+
+
+def test_upload_tab_double_click_opens_edit(
+    qtbot, store: ConfigStore, monkeypatch
+) -> None:
+    other = CredentialEntry(service="garmin", url="", login="other@x", password="p")
+    store.save_credentials([_GARMIN_CRED, other])
+    store.save_targets([_GARMIN_TARGET])
+    tab = _upload_tab(qtbot, store)
+
+    class _AcceptDialog:
+        def __init__(self, *a, **k):
+            pass
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+        def result_target(self):
+            return UploadTarget("garmin", "garmin", "other@x")
+
+    monkeypatch.setattr("app.gui.app.TargetDialog", _AcceptDialog)
+    tab._table.selectRow(0)
+    tab._table.itemDoubleClicked.emit(tab._table.item(0, 0))
     assert store.load_targets()[0].credential_login == "other@x"
 
 
