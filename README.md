@@ -144,6 +144,50 @@ uv run training-plan-generator upload \
 
 ### JSON plan format
 
+A plan file contains either a **single workout** or a **named dict of workouts**.
+
+**Single workout** (original format):
+
+```json
+{
+  "name": "Morning Ride",
+  "sport": "cycling",
+  "steps": [...]
+}
+```
+
+**Dict of workouts** (new format - multiple workouts in one file):
+
+```json
+{
+  "morning": {
+    "name": "Morning Ride",
+    "sport": "cycling",
+    "steps": [...]
+  },
+  "evening": {
+    "name": "Evening Run",
+    "sport": "running",
+    "steps": [...]
+  }
+}
+```
+
+When a file contains multiple workouts, pass `--workout-key <key>` on the CLI to
+select which one to upload:
+
+```bash
+uv run training-plan-generator upload \
+  --plan workouts.json \
+  --workout-key morning \
+  --connector garmin \
+  --credentials-provider json \
+  --creds-json credentials.json
+```
+
+If `--workout-key` is omitted and the file contains more than one workout, the CLI
+prints the available keys and exits with an error.
+
 See [`templates/workout_garmin.json`](templates/workout_garmin.json) for a ready-to-edit example.
 
 **Plan-level fields**
