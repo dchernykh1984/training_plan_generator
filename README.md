@@ -126,7 +126,9 @@ The window has two tabs:
   (login and password stored locally) or **KeePass** (only the path to the `.kdbx`
   file is stored). For KeePass entries the first field is the **Title** searched for
   in the database, not a free-form label - it must match the entry's Title exactly,
-  so the dialog relabels it accordingly.
+  so the dialog relabels it accordingly. **Test** checks the selected credential
+  without uploading: for KeePass it asks for the master password, opens the
+  database and reports whether an entry with that Title exists.
 - **Upload** - pick a plan file, then build a table of **upload targets**. Each row
   is one destination: a connector plus one of the credentials from the Credentials
   tab. Pressing **Upload** sends *every workout in the file* to *every target in the

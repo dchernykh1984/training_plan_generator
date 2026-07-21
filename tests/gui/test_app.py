@@ -20,6 +20,7 @@ from app.gui.app import (
     _find_credential,
     _keepass_paths,
     _keepass_provider,
+    check_credential,
     make_app_icon,
 )
 from app.gui.config_store import ConfigStore, CredentialEntry, UploadTarget
@@ -134,6 +135,182 @@ def test_keepass_provider_not_shared_between_caches() -> None:
     assert first is not second
     assert isinstance(second, KeePassProvider)
     assert second._password == "correct"
+
+
+# ---------------------------------------------------------------------------
+# check_credential
+# ---------------------------------------------------------------------------
+
+
+def test_check_credential_manual_ok() -> None:
+    ok, message = check_credential(_GARMIN_CRED)
+    assert ok
+    assert "me@x" in message
+
+
+def test_check_credential_manual_without_login_fails() -> None:
+    ok, message = check_credential(CredentialEntry("garmin", "", "", password="pw"))
+    assert not ok
+    assert "login" in message.lower()
+
+
+def test_check_credential_manual_without_password_fails() -> None:
+    ok, message = check_credential(CredentialEntry("garmin", "", "me@x"))
+    assert not ok
+    assert "password" in message.lower()
+
+
+def test_check_credential_keepass_without_path_fails() -> None:
+    entry = CredentialEntry("garmin", "", "me@x", source="keepass")
+    ok, message = check_credential(entry)
+    assert not ok
+    assert "KeePass file" in message
+
+
+def test_check_credential_keepass_searches_by_title_only(monkeypatch) -> None:
+    """The check must not filter on URL, so it reports purely on Title/login."""
+    seen = []
+
+    class _Provider:
+        def get(self, request):
+            seen.append(request)
+            from app.credentials.base import Credentials
+
+            return Credentials(login="kp@x", password="s")
+
+    monkeypatch.setattr("app.gui.app._keepass_provider", lambda *a: _Provider())
+    entry = CredentialEntry(
+        "garmin",
+        "https://connect.garmin.com",
+        "kp@x",
+        source="keepass",
+        keepass_path="/db.kdbx",
+    )
+    ok, message = check_credential(entry, "master")
+    assert ok
+    assert "kp@x" in message
+    assert seen[0].url == ""
+    assert seen[0].service == "garmin"
+
+
+def test_check_credential_keepass_reports_lookup_failure(monkeypatch) -> None:
+    class _Provider:
+        def get(self, request):
+            raise RuntimeError("No KeePass entry found for service='wrong-title'")
+
+    monkeypatch.setattr("app.gui.app._keepass_provider", lambda *a: _Provider())
+    entry = CredentialEntry(
+        "wrong-title", "", "kp@x", source="keepass", keepass_path="/db.kdbx"
+    )
+    ok, message = check_credential(entry, "master")
+    assert not ok
+    assert "No KeePass entry found" in message
+
+
+# ---------------------------------------------------------------------------
+# CredentialsTab - Test button
+# ---------------------------------------------------------------------------
+
+
+def test_credentials_tab_test_button_reports_success(
+    qtbot, store: ConfigStore, monkeypatch
+) -> None:
+    store.save_credentials([_GARMIN_CRED])
+    tab = CredentialsTab(store)
+    qtbot.addWidget(tab)
+    tab._table.selectRow(0)
+
+    shown: list[str] = []
+    monkeypatch.setattr(
+        "app.gui.app.QMessageBox.information", lambda *a, **k: shown.append(a[2])
+    )
+    tab._test()
+    assert shown and "me@x" in shown[0]
+
+
+def test_credentials_tab_test_button_reports_failure(
+    qtbot, store: ConfigStore, monkeypatch
+) -> None:
+    store.save_credentials([CredentialEntry("garmin", "", "me@x")])  # no password
+    tab = CredentialsTab(store)
+    qtbot.addWidget(tab)
+    tab._table.selectRow(0)
+
+    warned: list[str] = []
+    monkeypatch.setattr(
+        "app.gui.app.QMessageBox.warning", lambda *a, **k: warned.append(a[2])
+    )
+    tab._test()
+    assert warned and "password" in warned[0].lower()
+
+
+def test_credentials_tab_test_prompts_for_keepass_password(
+    qtbot, store: ConfigStore, monkeypatch
+) -> None:
+    kp = CredentialEntry(
+        "garmin", "", "kp@x", source="keepass", keepass_path="/db.kdbx"
+    )
+    store.save_credentials([kp])
+    tab = CredentialsTab(store)
+    qtbot.addWidget(tab)
+    tab._table.selectRow(0)
+
+    passwords: list[str] = []
+
+    class _Provider:
+        def get(self, request):
+            from app.credentials.base import Credentials
+
+            return Credentials(login="kp@x", password="s")
+
+    def _capture(path, pw_map, cache):
+        passwords.append(pw_map[path])
+        return _Provider()
+
+    monkeypatch.setattr("app.gui.app._keepass_provider", _capture)
+    monkeypatch.setattr(
+        "app.gui.app.QInputDialog.getText", lambda *a, **k: ("master", True)
+    )
+    monkeypatch.setattr("app.gui.app.QMessageBox.information", lambda *a, **k: None)
+    tab._test()
+    assert passwords == ["master"]
+
+
+def test_credentials_tab_test_aborts_when_keepass_prompt_cancelled(
+    qtbot, store: ConfigStore, monkeypatch
+) -> None:
+    kp = CredentialEntry(
+        "garmin", "", "kp@x", source="keepass", keepass_path="/db.kdbx"
+    )
+    store.save_credentials([kp])
+    tab = CredentialsTab(store)
+    qtbot.addWidget(tab)
+    tab._table.selectRow(0)
+
+    called: list[str] = []
+    monkeypatch.setattr(
+        "app.gui.app._keepass_provider",
+        lambda *a: called.append("built"),
+    )
+    monkeypatch.setattr("app.gui.app.QInputDialog.getText", lambda *a, **k: ("", False))
+    tab._test()
+    assert called == []
+
+
+def test_credentials_tab_test_noop_without_selection(
+    qtbot, store: ConfigStore, monkeypatch
+) -> None:
+    store.save_credentials([_GARMIN_CRED])
+    tab = CredentialsTab(store)
+    qtbot.addWidget(tab)
+    tab._table.setCurrentCell(-1, -1)
+
+    shown: list[str] = []
+    monkeypatch.setattr(
+        "app.gui.app.QMessageBox.information", lambda *a, **k: shown.append(a[2])
+    )
+    tab._test()
+    assert shown == []
 
 
 # ---------------------------------------------------------------------------
