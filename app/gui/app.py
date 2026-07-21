@@ -315,7 +315,10 @@ def check_credential(
             return False, "No login set."
         if not entry.password:
             return False, "No password set."
-        return True, f"Login {entry.login!r} and password are set."
+        return True, (
+            f"Login {entry.login!r} and password are set. They are not verified "
+            "against the service - only an upload does that."
+        )
 
     if not entry.keepass_path:
         return False, "No KeePass file set."
@@ -590,6 +593,11 @@ class CredentialsTab(QWidget):
 
         password = ""
         if entry.source == "keepass":
+            # Validate the path first - prompting for the master password of a
+            # credential that has no database to open just wastes the user's time.
+            if not entry.keepass_path:
+                QMessageBox.warning(self, "Credential check", "No KeePass file set.")
+                return
             password, ok = QInputDialog.getText(
                 self,
                 "KeePass master password",
@@ -601,9 +609,9 @@ class CredentialsTab(QWidget):
 
         success, message = check_credential(entry, password)
         if success:
-            QMessageBox.information(self, "Credential OK", message)
+            QMessageBox.information(self, "Credential check", message)
         else:
-            QMessageBox.warning(self, "Credential failed", message)
+            QMessageBox.warning(self, "Credential check", message)
 
     def entries(self) -> list[CredentialEntry]:
         return list(self._entries)
