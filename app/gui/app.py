@@ -331,8 +331,10 @@ class CredentialDialog(QDialog):
         self._url.addItems(list(_KNOWN_CREDENTIAL_URLS))
         self._url.setCurrentText(entry.url if entry else "")
         self._login = QLineEdit(entry.login if entry else "")
-        form.addRow("Account name:", self._service)
-        form.addRow("URL:", self._url)
+        self._service_label = QLabel()
+        self._url_label = QLabel("URL:")
+        form.addRow(self._service_label, self._service)
+        form.addRow(self._url_label, self._url)
         form.addRow("Login:", self._login)
 
         self._password = QLineEdit(entry.password if entry else "")
@@ -375,6 +377,28 @@ class CredentialDialog(QDialog):
         self._password_label.setVisible(not is_keepass)
         self._keepass_row.setVisible(is_keepass)
         self._keepass_label.setVisible(is_keepass)
+
+        # In KeePass mode this field is not a free-form name: it is used
+        # verbatim as the Title to look up in the .kdbx file, so say so.
+        if is_keepass:
+            self._service_label.setText("KeePass entry title:")
+            self._service.setPlaceholderText(
+                "Must match the entry's Title in the .kdbx file exactly"
+            )
+            self._service.setToolTip(
+                "Copied verbatim into the KeePass Title search. If it does not "
+                "match the entry's Title, the upload fails with "
+                "'No KeePass entry found'."
+            )
+            self._url_label.setText("URL (informational):")
+            self._url.setToolTip("Not used to look up the KeePass entry.")
+        else:
+            self._service_label.setText("Account name:")
+            self._service.setPlaceholderText("")
+            self._service.setToolTip("")
+            self._url_label.setText("URL:")
+            self._url.setToolTip("")
+
         self._validate()
 
     def _browse_keepass(self) -> None:
