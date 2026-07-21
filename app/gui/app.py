@@ -217,7 +217,12 @@ class UploadWorker(QThread):
                 provider = _keepass_provider_cached(
                     entry.keepass_path, self._keepass_passwords
                 )
-                return provider.get(request)
+                kp_request = CredentialRequest(
+                    service=request.service,
+                    url=entry.url or request.url,
+                    login=entry.login or request.login,
+                )
+                return provider.get(kp_request)
             return Credentials(login=entry.login, password=entry.password)
         except Exception as exc:
             self.log_line.emit(f"[ERROR] Credentials: {exc}")
