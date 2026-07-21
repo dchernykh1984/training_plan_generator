@@ -297,6 +297,40 @@ def test_credentials_tab_test_aborts_when_keepass_prompt_cancelled(
     assert called == []
 
 
+def test_credentials_tab_test_does_not_prompt_when_keepass_path_missing(
+    qtbot, store: ConfigStore, monkeypatch
+) -> None:
+    """A keepass entry with no .kdbx path must fail before asking for a password."""
+    store.save_credentials(
+        [CredentialEntry("garmin", "", "kp@x", source="keepass", keepass_path="")]
+    )
+    tab = CredentialsTab(store)
+    qtbot.addWidget(tab)
+    tab._table.selectRow(0)
+
+    prompted: list[str] = []
+    warned: list[str] = []
+
+    def _fake_get_text(*args, **kwargs) -> tuple[str, bool]:
+        prompted.append(args[2])
+        return "", True
+
+    monkeypatch.setattr("app.gui.app.QInputDialog.getText", _fake_get_text)
+    monkeypatch.setattr(
+        "app.gui.app.QMessageBox.warning", lambda *a, **k: warned.append(a[2])
+    )
+    tab._test()
+    assert prompted == []
+    assert warned == ["No KeePass file set."]
+
+
+def test_check_credential_manual_message_says_it_is_unverified() -> None:
+    """'Test' must not imply the password was checked against the service."""
+    ok, message = check_credential(_GARMIN_CRED)
+    assert ok
+    assert "not verified" in message.lower()
+
+
 def test_credentials_tab_test_noop_without_selection(
     qtbot, store: ConfigStore, monkeypatch
 ) -> None:
