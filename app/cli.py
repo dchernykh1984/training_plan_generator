@@ -54,6 +54,15 @@ def _build_parser() -> argparse.ArgumentParser:
             " (useful when multiple accounts exist for one service)"
         ),
     )
+    up.add_argument(
+        "--workout-key",
+        metavar="KEY",
+        default=None,
+        dest="workout_key",
+        help=(
+            "Key of the workout to upload when the plan file contains multiple workouts"
+        ),
+    )
     for factory in PROVIDER_FACTORIES.values():
         factory.add_cli_args(up)
 
@@ -61,7 +70,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _cmd_upload(args: argparse.Namespace) -> int:
-    from app.models.parser import parse_workout
+    from app.models.parser import parse_workout_file
 
     cache_dir = Path(args.cache_dir)
     log = RunLogger(cache_dir)
@@ -81,10 +90,33 @@ def _cmd_upload(args: argparse.Namespace) -> int:
         return 1
 
     try:
-        plan = parse_workout(json.loads(source_bytes))
+        plans = parse_workout_file(json.loads(source_bytes))
     except (ValueError, json.JSONDecodeError) as e:
         print(f"Error: {e}", file=sys.stderr)
         log.error(f"parse error: {e}")
+        return 1
+
+    if len(plans) == 1:
+        plan = next(iter(plans.values()))
+    elif args.workout_key is not None:
+        if args.workout_key not in plans:
+            print(
+                f"Error: workout key {args.workout_key!r} not found. "
+                f"Available: {sorted(plans)}",
+                file=sys.stderr,
+            )
+            log.error(f"workout key not found: {args.workout_key!r}")
+            return 1
+        plan = plans[args.workout_key]
+    else:
+        keys = sorted(plans)
+        print(
+            f"Error: plan file contains {len(plans)} workouts."
+            " Specify one with --workout-key.",
+            file=sys.stderr,
+        )
+        print(f"Available keys: {keys}", file=sys.stderr)
+        log.error("multiple workouts in file but --workout-key not provided")
         return 1
 
     log.info(
