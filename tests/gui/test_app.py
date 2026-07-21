@@ -199,6 +199,33 @@ def test_credential_dialog_service_label_is_account_name(qtbot) -> None:
     assert "Account name:" in labels
 
 
+def test_credential_dialog_service_label_says_title_in_keepass_mode(qtbot) -> None:
+    """The field is used verbatim as the KeePass Title - the label must say so."""
+    dlg = CredentialDialog()
+    qtbot.addWidget(dlg)
+    dlg._keepass_radio.setChecked(True)
+    assert dlg._service_label.text() == "KeePass entry title:"
+    assert "Title" in dlg._service.placeholderText()
+    assert "Title" in dlg._service.toolTip()
+
+
+def test_credential_dialog_service_label_reverts_to_account_name(qtbot) -> None:
+    dlg = CredentialDialog()
+    qtbot.addWidget(dlg)
+    dlg._keepass_radio.setChecked(True)
+    dlg._manual_radio.setChecked(True)
+    assert dlg._service_label.text() == "Account name:"
+    assert dlg._service.placeholderText() == ""
+
+
+def test_credential_dialog_marks_url_informational_in_keepass_mode(qtbot) -> None:
+    dlg = CredentialDialog()
+    qtbot.addWidget(dlg)
+    assert dlg._url_label.text() == "URL:"
+    dlg._keepass_radio.setChecked(True)
+    assert "informational" in dlg._url_label.text()
+
+
 def test_credential_dialog_url_dropdown_has_garmin_preset(qtbot) -> None:
     dlg = CredentialDialog()
     qtbot.addWidget(dlg)
