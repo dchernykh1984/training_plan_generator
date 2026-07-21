@@ -95,6 +95,10 @@ def _cmd_upload(args: argparse.Namespace) -> int:
     log.info(f"plan loaded: {len(plans)} workout(s)")
     print(f"Loaded {len(plans)} workout(s).")
 
+    # One source snapshot per run - it covers every workout in the file.
+    src_path = cache.save_source_plan(Path(args.plan).stem, source_bytes)
+    log.info(f"source cached: {src_path}")
+
     print(f"Reading credentials ({args.credentials_provider})...")
     try:
         factory = get_factory(args.credentials_provider)
@@ -131,7 +135,7 @@ def _cmd_upload(args: argparse.Namespace) -> int:
 
     failed = 0
     for plan in plans:
-        if not _upload_one(plan, connector, cache, source_bytes, args, log):
+        if not _upload_one(plan, connector, cache, args, log):
             failed += 1
 
     uploaded = len(plans) - failed
@@ -144,7 +148,6 @@ def _upload_one(
     plan: WorkoutPlan,
     connector: WorkoutConnector,
     cache: WorkoutCache,
-    source_bytes: bytes,
     args: argparse.Namespace,
     log: RunLogger,
 ) -> bool:
@@ -168,9 +171,8 @@ def _upload_one(
 
     log.info(f"upload success: name={plan.name!r} id={workout_id}")
     payload_path = cache.save_connector_payload(plan.name, args.connector, payload)
-    src_path = cache.save_source_plan(plan.name, source_bytes)
     print(f"Cached: {payload_path}")
-    log.info(f"artifacts saved: payload={payload_path} src={src_path}")
+    log.info(f"artifacts saved: payload={payload_path}")
     return True
 
 

@@ -413,6 +413,26 @@ def test_upload_multi_workout_caches_each_workout(tmp_path):
     assert any("evening" in n for n in cached)
 
 
+def test_upload_multi_workout_saves_one_source_snapshot(tmp_path):
+    """The whole file is one source artifact, not one copy per workout."""
+    creds_file = _write_garmin_creds(tmp_path)
+    cache_dir = tmp_path / "cache"
+    args = _upload_args(
+        tmp_path,
+        plan=_multi_plan_file(tmp_path),
+        creds_json=str(creds_file),
+        cache_dir=cache_dir,
+    )
+    mock_connector = MagicMock()
+    mock_connector.upload.return_value = "w-multi"
+    with patch("app.cli.get_connector", return_value=mock_connector):
+        _cmd_upload(args)
+    sources = [
+        p.name for p in (cache_dir / "workouts").iterdir() if ".source." in p.name
+    ]
+    assert sources == ["multi.source.json"]
+
+
 def test_upload_multi_workout_partial_failure_returns_error(tmp_path):
     creds_file = _write_garmin_creds(tmp_path)
     args = _upload_args(
