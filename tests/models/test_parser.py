@@ -910,6 +910,31 @@ def test_parse_workout_file_list_allows_duplicate_names():
     assert len(result) == 2
 
 
+def test_parse_workout_file_name_to_workout_mapping_gives_clear_error():
+    """A name->workout mapping must name the real problem, not a missing 'name'."""
+    data = {"training 1": _plan(name="Threshold 4x8")}
+    with pytest.raises(ValueError, match="wrap the workouts in a JSON array"):
+        parse_workout_file(data)
+
+
+def test_parse_workout_file_mapping_error_mentions_neither_name_nor_nonetype():
+    data = {"a": _plan(name="A"), "b": _plan(name="B")}
+    with pytest.raises(ValueError) as excinfo:
+        parse_workout_file(data)
+    assert "NoneType" not in str(excinfo.value)
+
+
+def test_parse_workout_file_single_workout_not_mistaken_for_mapping():
+    """A real single workout has 'steps' at the top level - it must still parse."""
+    result = parse_workout_file(_plan(name="Solo"))
+    assert [p.name for p in result] == ["Solo"]
+
+
+def test_parse_workout_file_dict_without_steps_still_reports_missing_steps():
+    with pytest.raises(ValueError, match="steps"):
+        parse_workout_file({"name": "X", "sport": "cycling"})
+
+
 def test_parse_workout_file_scalar_raises():
     with pytest.raises(ValueError, match="JSON object or array"):
         parse_workout_file("not a plan")
