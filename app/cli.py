@@ -5,12 +5,17 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from app.cache import WorkoutCache
 from app.connectors.registry import CONNECTORS, get_adapter, get_connector
 from app.credentials.base import CredentialRequest
 from app.credentials.registry import PROVIDER_FACTORIES, get_factory
 from app.run_log import RunLogger
+
+if TYPE_CHECKING:
+    from app.connectors.base import WorkoutConnector
+    from app.models.workout import WorkoutPlan
 
 _DEFAULT_CACHE_DIR = Path("logs")
 
@@ -54,15 +59,6 @@ def _build_parser() -> argparse.ArgumentParser:
             " (useful when multiple accounts exist for one service)"
         ),
     )
-    up.add_argument(
-        "--workout-key",
-        metavar="KEY",
-        default=None,
-        dest="workout_key",
-        help=(
-            "Key of the workout to upload when the plan file contains multiple workouts"
-        ),
-    )
     for factory in PROVIDER_FACTORIES.values():
         factory.add_cli_args(up)
 
@@ -96,40 +92,8 @@ def _cmd_upload(args: argparse.Namespace) -> int:
         log.error(f"parse error: {e}")
         return 1
 
-    if len(plans) == 1:
-        plan = next(iter(plans.values()))
-    elif args.workout_key is not None:
-        if args.workout_key not in plans:
-            print(
-                f"Error: workout key {args.workout_key!r} not found. "
-                f"Available: {sorted(plans)}",
-                file=sys.stderr,
-            )
-            log.error(f"workout key not found: {args.workout_key!r}")
-            return 1
-        plan = plans[args.workout_key]
-    else:
-        keys = sorted(plans)
-        print(
-            f"Error: plan file contains {len(plans)} workouts."
-            " Specify one with --workout-key.",
-            file=sys.stderr,
-        )
-        print(f"Available keys: {keys}", file=sys.stderr)
-        log.error("multiple workouts in file but --workout-key not provided")
-        return 1
-
-    log.info(
-        f"plan loaded: name={plan.name!r} sport={plan.sport} steps={len(plan.steps)}"
-    )
-
-    print(f"Building {args.connector} workout payload...")
-    adapter = get_adapter(args.connector)
-    adapt_result = adapter.to_payload(plan)
-    for w in adapt_result.warnings:
-        print(f"Warning: {w}")
-        log.warning(w)
-    payload = adapt_result.payload
+    log.info(f"plan loaded: {len(plans)} workout(s)")
+    print(f"Loaded {len(plans)} workout(s).")
 
     print(f"Reading credentials ({args.credentials_provider})...")
     try:
@@ -165,23 +129,49 @@ def _cmd_upload(args: argparse.Namespace) -> int:
 
     log.info("login success")
 
+    failed = 0
+    for plan in plans:
+        if not _upload_one(plan, connector, cache, source_bytes, args, log):
+            failed += 1
+
+    uploaded = len(plans) - failed
+    print(f"Done: {uploaded}/{len(plans)} workout(s) uploaded to {args.connector}.")
+    print(f"Log:    {cache_dir / 'training_plan_generator.log'}")
+    return 1 if failed else 0
+
+
+def _upload_one(
+    plan: WorkoutPlan,
+    connector: WorkoutConnector,
+    cache: WorkoutCache,
+    source_bytes: bytes,
+    args: argparse.Namespace,
+    log: RunLogger,
+) -> bool:
+    """Build, upload and cache a single workout. Returns True on success."""
+    log.info(f"plan: name={plan.name!r} sport={plan.sport} steps={len(plan.steps)}")
+    print(f"Building {args.connector} payload for {plan.name!r}...")
+    adapter = get_adapter(args.connector)
+    adapt_result = adapter.to_payload(plan)
+    for w in adapt_result.warnings:
+        print(f"Warning: {w}")
+        log.warning(w)
+    payload = adapt_result.payload
+
     print(f'Uploading workout "{plan.name}"...')
     try:
         workout_id = connector.upload(payload)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        log.error(f"upload error: {e}")
-        return 1
+        log.error(f"upload error for {plan.name!r}: {e}")
+        return False
 
-    log.info(f"upload success: id={workout_id}")
-
+    log.info(f"upload success: name={plan.name!r} id={workout_id}")
     payload_path = cache.save_connector_payload(plan.name, args.connector, payload)
     src_path = cache.save_source_plan(plan.name, source_bytes)
     print(f"Cached: {payload_path}")
-    print(f"Done: workout uploaded to {args.connector} (id={workout_id}).")
     log.info(f"artifacts saved: payload={payload_path} src={src_path}")
-    print(f"Log:    {cache_dir / 'training_plan_generator.log'}")
-    return 0
+    return True
 
 
 def main() -> None:

@@ -877,50 +877,51 @@ def test_nested_repeat_raises():
 # --- parse_workout_file ---
 
 
-def test_parse_workout_file_single_workout_format():
-    data = _plan()
-    result = parse_workout_file(data)
+def test_parse_workout_file_single_workout_object():
+    result = parse_workout_file(_plan())
     assert len(result) == 1
-    assert "Test Plan" in result
-    assert isinstance(result["Test Plan"], WorkoutPlan)
+    assert isinstance(result[0], WorkoutPlan)
+    assert result[0].name == "Test Plan"
 
 
-def test_parse_workout_file_single_uses_plan_name_as_key():
-    data = _plan(name="My Ride")
+def test_parse_workout_file_list_format():
+    data = [
+        _plan(name="Morning Ride"),
+        _plan(name="Evening Run", sport="running"),
+    ]
     result = parse_workout_file(data)
-    assert list(result.keys()) == ["My Ride"]
+    assert [p.name for p in result] == ["Morning Ride", "Evening Run"]
+    assert result[1].sport == "running"
 
 
-def test_parse_workout_file_dict_format():
-    data = {
-        "morning": _plan(name="Morning Ride"),
-        "evening": _plan(name="Evening Run", sport="running"),
-    }
-    result = parse_workout_file(data)
-    assert set(result.keys()) == {"morning", "evening"}
-    assert result["morning"].name == "Morning Ride"
-    assert result["evening"].sport == "running"
+def test_parse_workout_file_list_preserves_order():
+    data = [_plan(name="A"), _plan(name="B"), _plan(name="C")]
+    assert [p.name for p in parse_workout_file(data)] == ["A", "B", "C"]
 
 
-def test_parse_workout_file_dict_single_entry():
-    data = {"only": _plan(name="Solo")}
-    result = parse_workout_file(data)
-    assert list(result.keys()) == ["only"]
-    assert result["only"].name == "Solo"
+def test_parse_workout_file_list_single_entry():
+    result = parse_workout_file([_plan(name="Solo")])
+    assert len(result) == 1
+    assert result[0].name == "Solo"
 
 
-def test_parse_workout_file_not_a_dict_raises():
-    with pytest.raises(ValueError, match="JSON object"):
-        parse_workout_file(["not", "a", "dict"])
+def test_parse_workout_file_list_allows_duplicate_names():
+    result = parse_workout_file([_plan(name="Same"), _plan(name="Same")])
+    assert len(result) == 2
 
 
-def test_parse_workout_file_empty_dict_raises():
+def test_parse_workout_file_scalar_raises():
+    with pytest.raises(ValueError, match="JSON object or array"):
+        parse_workout_file("not a plan")
+
+
+def test_parse_workout_file_empty_list_raises():
     with pytest.raises(ValueError, match="must not be empty"):
-        parse_workout_file({})
+        parse_workout_file([])
 
 
-def test_parse_workout_file_dict_invalid_workout_raises():
-    data = {"bad": {"name": "X", "sport": "cycling"}}  # missing steps
+def test_parse_workout_file_list_invalid_workout_raises():
+    data = [_plan(), {"name": "X", "sport": "cycling"}]  # second is missing steps
     with pytest.raises(ValueError, match="steps"):
         parse_workout_file(data)
 

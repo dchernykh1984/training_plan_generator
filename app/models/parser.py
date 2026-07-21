@@ -194,24 +194,26 @@ def _parse_ftp_watts(raw: object) -> int | None:
     return _require_positive_int(raw, "ftp_watts")
 
 
-def parse_workout_file(data: object) -> dict[str, WorkoutPlan]:
-    """Parse a plan file containing one workout or a named dict of workouts.
+def parse_workout_file(data: object) -> list[WorkoutPlan]:
+    """Parse a plan file containing one workout or a list of workouts.
 
-    Single-workout format (top-level dict has both ``"name"`` and ``"steps"``):
+    Single-workout format (a JSON object):
         ``{"name": "...", "sport": "cycling", "steps": [...]}``
-    Dict-of-workouts format (top-level keys are arbitrary workout identifiers):
-        ``{"key_a": {"name": "...", ...}, "key_b": {"name": "...", ...}}``
+    Multi-workout format (a JSON array of those same objects):
+        ``[{"name": "...", ...}, {"name": "...", ...}]``
+
+    Both forms return a list, so callers always iterate over every workout in
+    the file.
     """
-    if not isinstance(data, dict):
+    if isinstance(data, dict):
+        return [parse_workout(data)]
+    if not isinstance(data, list):
         raise ValueError(
-            f"Plan file must be a JSON object, got {type(data).__name__!r}"
+            f"Plan file must be a JSON object or array, got {type(data).__name__!r}"
         )
-    if "name" in data and "steps" in data:
-        plan = parse_workout(data)
-        return {plan.name: plan}
     if not data:
         raise ValueError("Plan file must not be empty")
-    return {key: parse_workout(val) for key, val in data.items()}
+    return [parse_workout(item) for item in data]
 
 
 def parse_workout(data: dict) -> WorkoutPlan:

@@ -10,6 +10,7 @@ from app.gui.config_store import (
     ConfigStore,
     CredentialEntry,
     GuiConfig,
+    UploadTarget,
     _parse_credential_entry,
     _serialize_credential,
 )
@@ -152,25 +153,63 @@ def test_load_credentials_from_invalid_file_raises(
 
 
 def test_load_gui_config_defaults_when_no_file(store: ConfigStore) -> None:
-    cfg = store.load_gui_config()
-    assert cfg.last_plan_path == ""
-    assert cfg.last_connector == "garmin"
-    assert cfg.last_workout_key == ""
+    assert store.load_gui_config().last_plan_path == ""
 
 
 def test_save_and_load_gui_config_roundtrip(store: ConfigStore) -> None:
-    cfg = GuiConfig(
-        last_plan_path="/home/user/plan.json",
-        last_workout_key="morning",
-        last_connector="garmin",
-        last_credential_service="garmin",
-        last_credential_login="me@x",
-    )
-    store.save_gui_config(cfg)
-    loaded = store.load_gui_config()
-    assert loaded.last_plan_path == "/home/user/plan.json"
-    assert loaded.last_workout_key == "morning"
-    assert loaded.last_credential_login == "me@x"
+    store.save_gui_config(GuiConfig(last_plan_path="/home/user/plan.json"))
+    assert store.load_gui_config().last_plan_path == "/home/user/plan.json"
+
+
+# ---------------------------------------------------------------------------
+# ConfigStore - upload targets
+# ---------------------------------------------------------------------------
+
+
+def test_load_targets_empty_when_no_file(store: ConfigStore) -> None:
+    assert store.load_targets() == []
+
+
+def test_save_and_load_targets_roundtrip(store: ConfigStore) -> None:
+    targets = [
+        UploadTarget(
+            connector="garmin", credential_service="garmin", credential_login="me@x"
+        ),
+        UploadTarget(
+            connector="garmin", credential_service="garmin", credential_login="two@x"
+        ),
+    ]
+    store.save_targets(targets)
+    loaded = store.load_targets()
+    assert len(loaded) == 2
+    assert loaded[0].credential_login == "me@x"
+    assert loaded[1].credential_login == "two@x"
+
+
+def test_save_targets_preserves_order(store: ConfigStore) -> None:
+    store.save_targets([UploadTarget(credential_login=str(i)) for i in range(4)])
+    assert [t.credential_login for t in store.load_targets()] == ["0", "1", "2", "3"]
+
+
+def test_load_targets_rejects_non_array(store: ConfigStore) -> None:
+    store.targets_path.write_text('{"not": "a list"}')
+    with pytest.raises(ValueError, match="JSON array"):
+        store.load_targets()
+
+
+def test_target_defaults(store: ConfigStore) -> None:
+    store.targets_path.write_text('[{"credential_service": "garmin"}]')
+    target = store.load_targets()[0]
+    assert target.connector == "garmin"
+    assert target.credential_login == ""
+
+
+def test_save_targets_overwrites_previous(store: ConfigStore) -> None:
+    store.save_targets([UploadTarget(credential_service="a")])
+    store.save_targets([UploadTarget(credential_service="b")])
+    loaded = store.load_targets()
+    assert len(loaded) == 1
+    assert loaded[0].credential_service == "b"
 
 
 def test_config_dir_created_on_init(tmp_path: Path) -> None:
