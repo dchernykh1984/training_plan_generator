@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -26,7 +27,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QRadioButton,
-    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -40,14 +40,26 @@ from app.gui.config_store import (
     ConfigStore,
     CredentialEntry,
     GuiConfig,
+    UploadTarget,
 )
 
 if TYPE_CHECKING:
+    from app.adapters.base import PayloadAdapter
+    from app.cache import WorkoutCache
+    from app.connectors.base import WorkoutConnector
     from app.credentials.base import CredentialProvider, Credentials
     from app.models.workout import WorkoutPlan
     from app.run_log import RunLogger
 
 _KNOWN_CREDENTIAL_URLS = ("https://connect.garmin.com",)
+
+
+@dataclass
+class ResolvedTarget:
+    """An upload target whose credential reference has been resolved."""
+
+    connector: str
+    credential: CredentialEntry
 
 
 # ---------------------------------------------------------------------------
@@ -57,27 +69,19 @@ _KNOWN_CREDENTIAL_URLS = ("https://connect.garmin.com",)
 
 class UploadWorker(QThread):
     log_line = Signal(str)
-    finished = Signal(int)  # exit code: 0 = success, 1 = error
+    finished = Signal(int)  # exit code: 0 = success, 1 = at least one failure
 
     def __init__(
         self,
         plan_path: str,
-        workout_key: str | None,
-        connector_name: str,
-        credential_entries: list[CredentialEntry],
+        targets: list[ResolvedTarget],
         keepass_passwords: dict[str, str],
-        credential_service: str,
-        credential_login: str,
         cache_dir: Path,
     ) -> None:
         super().__init__()
         self._plan_path = plan_path
-        self._workout_key = workout_key
-        self._connector_name = connector_name
-        self._credential_entries = credential_entries
+        self._targets = targets
         self._keepass_passwords = keepass_passwords
-        self._credential_service = credential_service
-        self._credential_login = credential_login or None
         self._cache_dir = cache_dir
         self._source_bytes: bytes | None = None
         self._kp_providers: dict[str, CredentialProvider] = {}
@@ -99,64 +103,31 @@ class UploadWorker(QThread):
     # ------------------------------------------------------------------
 
     def _upload(self) -> int:
-        import logging
-
         from app.cache import WorkoutCache
-        from app.connectors.registry import get_adapter, get_connector
         from app.run_log import RunLogger
 
         log = RunLogger(self._cache_dir)
         cache = WorkoutCache(self._cache_dir)
 
-        plan = self._load_plan(log)
-        if plan is None:
+        if not self._targets:
+            self.log_line.emit("[ERROR] No upload targets configured.")
+            log.error("no upload targets")
             return 1
 
-        self.log_line.emit(f"Building {self._connector_name} payload...")
-        adapter = get_adapter(self._connector_name)
-        adapt_result = adapter.to_payload(plan)
-        for w in adapt_result.warnings:
-            self.log_line.emit(f"[WARNING] {w}")
-            log.warning(w)
-        payload = adapt_result.payload
-
-        creds = self._get_creds(log)
-        if creds is None:
+        plans = self._load_plans(log)
+        if plans is None:
             return 1
 
-        self.log_line.emit(f"Logging in to {self._connector_name} ({creds.login})...")
-        connector = get_connector(self._connector_name)
-        garmin_logger = logging.getLogger("garminconnect.client")
-        orig_level = garmin_logger.level
-        garmin_logger.setLevel(logging.ERROR)
-        try:
-            connector.login(creds)
-        except RuntimeError as exc:
-            self.log_line.emit(f"[ERROR] Login: {exc}")
-            log.error(f"login error: {exc}")
-            return 1
-        finally:
-            garmin_logger.setLevel(orig_level)
+        failures = 0
+        for target in self._targets:
+            failures += self._upload_to_target(target, plans, cache, log)
 
-        log.info("login success")
-        self.log_line.emit(f'Uploading "{plan.name}"...')
-        try:
-            workout_id = connector.upload(payload)
-        except Exception as exc:
-            self.log_line.emit(f"[ERROR] Upload: {exc}")
-            log.error(f"upload error: {exc}")
-            return 1
-
-        log.info(f"upload success: id={workout_id}")
-        payload_path = cache.save_connector_payload(
-            plan.name, self._connector_name, payload
-        )
-        cache.save_source_plan(plan.name, self._source_bytes or b"")
-        self.log_line.emit(f"Done. Cached payload: {payload_path}")
+        total = len(self._targets) * len(plans)
+        self.log_line.emit(f"Finished: {total - failures}/{total} upload(s) succeeded.")
         self.log_line.emit(f"Log: {self._cache_dir / 'training_plan_generator.log'}")
-        return 0
+        return 1 if failures else 0
 
-    def _load_plan(self, log: RunLogger) -> WorkoutPlan | None:
+    def _load_plans(self, log: RunLogger) -> list[WorkoutPlan] | None:
         from app.models.parser import parse_workout_file
 
         self.log_line.emit(f"Loading plan: {Path(self._plan_path).name}")
@@ -175,77 +146,104 @@ class UploadWorker(QThread):
             log.error(f"parse error: {exc}")
             return None
 
-        if self._workout_key is not None and self._workout_key in plans:
-            plan = plans[self._workout_key]
-        elif len(plans) == 1:
-            plan = next(iter(plans.values()))
-        else:
-            self.log_line.emit(
-                f"[ERROR] Multiple workouts; select one: {sorted(plans)}"
-            )
-            return None
+        self.log_line.emit(f"Loaded {len(plans)} workout(s).")
+        log.info(f"plan loaded: {len(plans)} workout(s)")
+        return plans
 
-        self.log_line.emit(
-            f"Plan loaded: {plan.name!r} ({plan.sport}, {len(plan.steps)} steps)"
-        )
-        log.info(
-            f"plan loaded: name={plan.name!r} sport={plan.sport} "
-            f"steps={len(plan.steps)}"
-        )
-        return plan
+    def _upload_to_target(
+        self,
+        target: ResolvedTarget,
+        plans: list[WorkoutPlan],
+        cache: WorkoutCache,
+        log: RunLogger,
+    ) -> int:
+        """Upload every plan to one target. Returns the number of failures."""
+        import logging
 
-    def _get_creds(self, log: RunLogger) -> Credentials | None:
-        from app.credentials.base import (
-            CredentialRequest,
-            Credentials,
-            CredentialsNotFoundError,
-        )
+        from app.connectors.registry import get_adapter, get_connector
 
-        self.log_line.emit("Reading credentials...")
-        request = CredentialRequest(
-            service=self._credential_service or self._connector_name,
-            url=self._connector_name,
-            login=self._credential_login,
-        )
-        entry = _find_credential(
-            self._credential_entries,
-            request.service,
-            request.url,
-            request.login,
-        )
+        self.log_line.emit(f"--- {target.connector} / {target.credential.service} ---")
+
+        creds = self._get_creds(target, log)
+        if creds is None:
+            return len(plans)
+
+        self.log_line.emit(f"Logging in to {target.connector} ({creds.login})...")
+        connector = get_connector(target.connector)
+        garmin_logger = logging.getLogger("garminconnect.client")
+        orig_level = garmin_logger.level
+        garmin_logger.setLevel(logging.ERROR)
         try:
-            if entry is None:
-                raise CredentialsNotFoundError(
-                    f"No credential found for service={request.service!r}"
-                )
+            connector.login(creds)
+        except Exception as exc:
+            self.log_line.emit(f"[ERROR] Login: {exc}")
+            log.error(f"login error ({target.connector}): {exc}")
+            return len(plans)
+        finally:
+            garmin_logger.setLevel(orig_level)
+
+        log.info(f"login success: {target.connector}")
+        adapter = get_adapter(target.connector)
+
+        failures = 0
+        for plan in plans:
+            if not self._upload_plan(
+                plan, adapter, connector, cache, target.connector, log
+            ):
+                failures += 1
+        return failures
+
+    def _upload_plan(
+        self,
+        plan: WorkoutPlan,
+        adapter: PayloadAdapter,
+        connector: WorkoutConnector,
+        cache: WorkoutCache,
+        connector_name: str,
+        log: RunLogger,
+    ) -> bool:
+        adapt_result = adapter.to_payload(plan)
+        for w in adapt_result.warnings:
+            self.log_line.emit(f"[WARNING] {w}")
+            log.warning(w)
+
+        self.log_line.emit(f'Uploading "{plan.name}"...')
+        try:
+            workout_id = connector.upload(adapt_result.payload)
+        except Exception as exc:
+            self.log_line.emit(f"[ERROR] Upload {plan.name!r}: {exc}")
+            log.error(f"upload error {plan.name!r}: {exc}")
+            return False
+
+        log.info(f"upload success: name={plan.name!r} id={workout_id}")
+        payload_path = cache.save_connector_payload(
+            plan.name, connector_name, adapt_result.payload
+        )
+        cache.save_source_plan(plan.name, self._source_bytes or b"")
+        self.log_line.emit(f"  done (id={workout_id}), cached: {payload_path}")
+        return True
+
+    def _get_creds(self, target: ResolvedTarget, log: RunLogger) -> Credentials | None:
+        from app.credentials.base import CredentialRequest, Credentials
+
+        entry = target.credential
+        self.log_line.emit("Reading credentials...")
+        try:
             if entry.source == "keepass":
                 provider = _keepass_provider(
                     entry.keepass_path, self._keepass_passwords, self._kp_providers
                 )
-                kp_request = CredentialRequest(
-                    service=request.service,
-                    url=entry.url or request.url,
-                    login=entry.login or request.login,
+                request = CredentialRequest(
+                    service=entry.service,
+                    url=entry.url or target.connector,
+                    login=entry.login or None,
                 )
-                return provider.get(kp_request)
+                return provider.get(request)
             return Credentials(login=entry.login, password=entry.password)
         except Exception as exc:
             self.log_line.emit(f"[ERROR] Credentials: {exc}")
             log.error(f"credentials error: {exc}")
             return None
-
-
-def _find_credential(
-    entries: list[CredentialEntry], service: str, url: str, login: str | None
-) -> CredentialEntry | None:
-    matches = [
-        e
-        for e in entries
-        if e.service == service
-        and (not url or url in e.url or e.url in url or not e.url)
-        and (login is None or e.login == login)
-    ]
-    return matches[0] if matches else None
 
 
 def _keepass_provider(
@@ -267,6 +265,30 @@ def _keepass_provider(
             password=passwords.get(path, ""),
         )
     return cache[path]
+
+
+def _find_credential(
+    entries: list[CredentialEntry], service: str, login: str
+) -> CredentialEntry | None:
+    """Resolve a target's (service, login) reference to a stored credential."""
+    for entry in entries:
+        if entry.service == service and entry.login == login:
+            return entry
+    return None
+
+
+def _keepass_paths(credentials: list[CredentialEntry]) -> list[str]:
+    """Distinct .kdbx paths across credentials, in first-seen order.
+
+    Deduplicating here is what keeps the GUI from asking for the same master
+    password twice when several targets read from one KeePass database.
+    """
+    paths: list[str] = []
+    for cred in credentials:
+        if cred.source == "keepass" and cred.keepass_path:
+            if cred.keepass_path not in paths:
+                paths.append(cred.keepass_path)
+    return paths
 
 
 # ---------------------------------------------------------------------------
@@ -416,7 +438,6 @@ class CredentialsTab(QWidget):
         self._edit_btn.clicked.connect(self._edit)
         self._delete_btn.clicked.connect(self._delete)
         self._load_btn.clicked.connect(self._load_from_file)
-        self._table.itemDoubleClicked.connect(self._edit)
 
         self._refresh_table()
 
@@ -487,6 +508,68 @@ class CredentialsTab(QWidget):
 
 
 # ---------------------------------------------------------------------------
+# TargetDialog
+# ---------------------------------------------------------------------------
+
+
+class TargetDialog(QDialog):
+    """Pick a connector and one of the stored credentials for it."""
+
+    def __init__(
+        self,
+        credentials: list[CredentialEntry],
+        target: UploadTarget | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Add Target" if target is None else "Edit Target")
+        self.setMinimumWidth(400)
+
+        form = QFormLayout(self)
+
+        self._connector = QComboBox()
+        self._connector.addItems(list(CONNECTOR_TYPES))
+        if target is not None:
+            idx = self._connector.findText(target.connector)
+            if idx >= 0:
+                self._connector.setCurrentIndex(idx)
+        form.addRow("Connector:", self._connector)
+
+        self._credential = QComboBox()
+        for cred in credentials:
+            label = f"{cred.service} ({cred.login})" if cred.login else cred.service
+            self._credential.addItem(label, cred)
+        if target is not None:
+            for i in range(self._credential.count()):
+                cred = self._credential.itemData(i)
+                if (
+                    cred.service == target.credential_service
+                    and cred.login == target.credential_login
+                ):
+                    self._credential.setCurrentIndex(i)
+                    break
+        form.addRow("Credential:", self._credential)
+
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        btns.accepted.connect(self.accept)
+        btns.rejected.connect(self.reject)
+        form.addRow(btns)
+
+        ok_btn = btns.button(QDialogButtonBox.StandardButton.Ok)
+        ok_btn.setEnabled(self._credential.count() > 0)
+
+    def result_target(self) -> UploadTarget:
+        cred: CredentialEntry | None = self._credential.currentData()
+        return UploadTarget(
+            connector=self._connector.currentText(),
+            credential_service=cred.service if cred else "",
+            credential_login=cred.login if cred else "",
+        )
+
+
+# ---------------------------------------------------------------------------
 # UploadTab
 # ---------------------------------------------------------------------------
 
@@ -502,7 +585,7 @@ class UploadTab(QWidget):
         self._store = store
         self._creds_tab = creds_tab
         self._config: GuiConfig = store.load_gui_config()
-        self._plans: dict[str, WorkoutPlan] = {}
+        self._targets: list[UploadTarget] = store.load_targets()
         self._worker: UploadWorker | None = None
 
         root = QVBoxLayout(self)
@@ -514,37 +597,33 @@ class UploadTab(QWidget):
         self._plan_path = QLineEdit(self._config.last_plan_path)
         self._plan_path.setPlaceholderText("Path to workout JSON file")
         self._plan_browse = QPushButton("Browse...")
-        self._plan_reload = QPushButton("Reload")
         plan_row.addWidget(self._plan_path)
         plan_row.addWidget(self._plan_browse)
-        plan_row.addWidget(self._plan_reload)
         plan_form.addRow("File:", plan_row)
-
-        self._workout_combo = QComboBox()
-        self._workout_combo.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-        )
-        plan_form.addRow("Workout:", self._workout_combo)
         root.addWidget(plan_box)
 
-        # Upload settings group
-        settings_box = QGroupBox("Upload settings")
-        settings_form = QFormLayout(settings_box)
+        # Targets group - every workout in the file goes to every target here
+        targets_box = QGroupBox("Upload targets")
+        targets_layout = QVBoxLayout(targets_box)
 
-        self._connector_combo = QComboBox()
-        self._connector_combo.addItems(list(CONNECTOR_TYPES))
-        idx = self._connector_combo.findText(self._config.last_connector)
-        if idx >= 0:
-            self._connector_combo.setCurrentIndex(idx)
-        settings_form.addRow("Connector:", self._connector_combo)
-
-        self._cred_combo = QComboBox()
-        self._cred_combo.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        self._table = QTableWidget(0, 2)
+        self._table.setHorizontalHeaderLabels(["Connector", "Credential"])
+        self._table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
         )
-        settings_form.addRow("Credential:", self._cred_combo)
+        self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        targets_layout.addWidget(self._table)
 
-        root.addWidget(settings_box)
+        t_btn_row = QHBoxLayout()
+        self._add_btn = QPushButton("Add")
+        self._edit_btn = QPushButton("Edit")
+        self._delete_btn = QPushButton("Delete")
+        for btn in (self._add_btn, self._edit_btn, self._delete_btn):
+            t_btn_row.addWidget(btn)
+        t_btn_row.addStretch()
+        targets_layout.addLayout(t_btn_row)
+        root.addWidget(targets_box)
 
         # Upload button
         btn_row = QHBoxLayout()
@@ -564,13 +643,17 @@ class UploadTab(QWidget):
 
         # Wire signals
         self._plan_browse.clicked.connect(self._browse_plan)
-        self._plan_reload.clicked.connect(self._reload_plan)
-        self._plan_path.editingFinished.connect(self._reload_plan)
+        self._plan_path.editingFinished.connect(self._save_config)
+        self._add_btn.clicked.connect(self._add_target)
+        self._edit_btn.clicked.connect(self._edit_target)
+        self._delete_btn.clicked.connect(self._delete_target)
         self._upload_btn.clicked.connect(self._run_upload)
 
-        self._refresh_credential_combo()
-        if self._config.last_plan_path:
-            self._reload_plan()
+        self._refresh_table()
+
+    # ------------------------------------------------------------------
+    # Plan file
+    # ------------------------------------------------------------------
 
     def _browse_plan(self) -> None:
         path_str, _ = QFileDialog.getOpenFileName(
@@ -578,64 +661,90 @@ class UploadTab(QWidget):
         )
         if path_str:
             self._plan_path.setText(path_str)
-            self._reload_plan()
-
-    def _reload_plan(self) -> None:
-        path_str = self._plan_path.text().strip()
-        if not path_str:
-            return
-        try:
-            from app.models.parser import parse_workout_file
-
-            raw = json.loads(Path(path_str).read_bytes())
-            self._plans = parse_workout_file(raw)
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
-            self._status.setText(f"[ERROR] {exc}")
-            self._plans = {}
-            self._workout_combo.clear()
-            return
-
-        self._workout_combo.clear()
-        for key in self._plans:
-            self._workout_combo.addItem(key)
-
-        last_key = self._config.last_workout_key
-        idx = self._workout_combo.findText(last_key)
-        if idx >= 0:
-            self._workout_combo.setCurrentIndex(idx)
-
-        self._status.setText(
-            f"Loaded {len(self._plans)} workout(s) from {Path(path_str).name}"
-        )
-        self._save_config()
-
-    def _refresh_credential_combo(self) -> None:
-        self._cred_combo.clear()
-        for e in self._creds_tab.entries():
-            label = f"{e.service} ({e.login})" if e.login else e.service
-            self._cred_combo.addItem(label, e)
-        last_svc = self._config.last_credential_service
-        last_login = self._config.last_credential_login
-        for i in range(self._cred_combo.count()):
-            cred: CredentialEntry = self._cred_combo.itemData(i)
-            if cred.service == last_svc and cred.login == last_login:
-                self._cred_combo.setCurrentIndex(i)
-                break
+            self._save_config()
 
     def _save_config(self) -> None:
-        cred: CredentialEntry | None = self._cred_combo.currentData()
         self._config.last_plan_path = self._plan_path.text().strip()
-        self._config.last_workout_key = self._workout_combo.currentText()
-        self._config.last_connector = self._connector_combo.currentText()
-        self._config.last_credential_service = cred.service if cred else ""
-        self._config.last_credential_login = cred.login if cred else ""
         self._store.save_gui_config(self._config)
 
-    @staticmethod
-    def _keepass_paths_needed(cred: CredentialEntry | None) -> list[str]:
-        if cred is not None and cred.source == "keepass" and cred.keepass_path:
-            return [cred.keepass_path]
-        return []
+    # ------------------------------------------------------------------
+    # Targets table
+    # ------------------------------------------------------------------
+
+    def _refresh_table(self) -> None:
+        self._table.setRowCount(0)
+        entries = self._creds_tab.entries()
+        for target in self._targets:
+            row = self._table.rowCount()
+            self._table.insertRow(row)
+            self._table.setItem(row, 0, QTableWidgetItem(target.connector))
+            cred = _find_credential(
+                entries, target.credential_service, target.credential_login
+            )
+            label = (
+                f"{target.credential_service} ({target.credential_login})"
+                if target.credential_login
+                else target.credential_service
+            )
+            if cred is None:
+                label += "  [missing]"
+            self._table.setItem(row, 1, QTableWidgetItem(label))
+
+    def _add_target(self) -> None:
+        entries = self._creds_tab.entries()
+        if not entries:
+            QMessageBox.warning(
+                self,
+                "No credentials",
+                "Add a credential in the Credentials tab first.",
+            )
+            return
+        dlg = TargetDialog(entries, parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._targets.append(dlg.result_target())
+            self._store.save_targets(self._targets)
+            self._refresh_table()
+
+    def _edit_target(self) -> None:
+        row = self._table.currentRow()
+        if row < 0:
+            return
+        entries = self._creds_tab.entries()
+        if not entries:
+            return
+        dlg = TargetDialog(entries, target=self._targets[row], parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        self._targets[row] = dlg.result_target()
+        self._store.save_targets(self._targets)
+        self._refresh_table()
+
+    def _delete_target(self) -> None:
+        row = self._table.currentRow()
+        if row < 0:
+            return
+        self._targets.pop(row)
+        self._store.save_targets(self._targets)
+        self._refresh_table()
+
+    # ------------------------------------------------------------------
+    # Upload
+    # ------------------------------------------------------------------
+
+    def _resolve_targets(self) -> tuple[list[ResolvedTarget], list[str]]:
+        """Match every target's credential reference against stored credentials."""
+        entries = self._creds_tab.entries()
+        resolved: list[ResolvedTarget] = []
+        missing: list[str] = []
+        for target in self._targets:
+            cred = _find_credential(
+                entries, target.credential_service, target.credential_login
+            )
+            if cred is None:
+                missing.append(f"{target.connector} / {target.credential_service}")
+            else:
+                resolved.append(ResolvedTarget(target.connector, cred))
+        return resolved, missing
 
     def _prompt_keepass_passwords(
         self, paths: list[str]
@@ -654,29 +763,27 @@ class UploadTab(QWidget):
         return True, passwords
 
     def _run_upload(self) -> None:
-        self._refresh_credential_combo()
         plan_path = self._plan_path.text().strip()
         if not plan_path:
             QMessageBox.warning(self, "Missing plan", "Select a plan file first.")
             return
-        if not self._plans:
+        if not self._targets:
             QMessageBox.warning(
-                self, "No workouts", "No workouts loaded. Reload the plan file."
+                self, "No targets", "Add at least one upload target first."
             )
             return
 
-        workout_key = self._workout_combo.currentText() or None
-        connector_name = self._connector_combo.currentText()
-        cred: CredentialEntry | None = self._cred_combo.currentData()
-        if cred is None:
+        resolved, missing = self._resolve_targets()
+        if missing:
             QMessageBox.warning(
                 self,
-                "No credential",
-                "Add a credential in the Credentials tab first.",
+                "Missing credentials",
+                "These targets reference credentials that no longer exist:\n"
+                + "\n".join(missing),
             )
             return
 
-        kp_paths = self._keepass_paths_needed(cred)
+        kp_paths = _keepass_paths([t.credential for t in resolved])
         proceed, kp_passwords = self._prompt_keepass_passwords(kp_paths)
         if not proceed:
             return
@@ -688,12 +795,8 @@ class UploadTab(QWidget):
 
         self._worker = UploadWorker(
             plan_path=plan_path,
-            workout_key=workout_key,
-            connector_name=connector_name,
-            credential_entries=self._creds_tab.entries(),
+            targets=resolved,
             keepass_passwords=kp_passwords,
-            credential_service=cred.service,
-            credential_login=cred.login,
             cache_dir=self._store.cache_dir,
         )
         self._worker.log_line.connect(self._on_log_line)
@@ -730,7 +833,7 @@ class MainWindow(QMainWindow):
     def __init__(self, store: ConfigStore) -> None:
         super().__init__()
         self.setWindowTitle("Training Plan Generator")
-        self.resize(800, 600)
+        self.resize(800, 640)
 
         tabs = QTabWidget()
         self._creds_tab = CredentialsTab(store)
@@ -749,8 +852,9 @@ class MainWindow(QMainWindow):
         file_menu.addAction(quit_action)
 
     def _on_tab_changed(self, index: int) -> None:
+        # Credentials may have been added or removed - re-check target labels.
         if index == 0:
-            self._upload_tab._refresh_credential_combo()
+            self._upload_tab._refresh_table()
 
 
 # ---------------------------------------------------------------------------

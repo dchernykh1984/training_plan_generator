@@ -13,13 +13,16 @@ from app.gui.app import (
     CredentialDialog,
     CredentialsTab,
     MainWindow,
+    ResolvedTarget,
+    TargetDialog,
     UploadTab,
     UploadWorker,
     _find_credential,
+    _keepass_paths,
     _keepass_provider,
     make_app_icon,
 )
-from app.gui.config_store import ConfigStore, CredentialEntry
+from app.gui.config_store import ConfigStore, CredentialEntry, UploadTarget
 
 
 @pytest.fixture()
@@ -33,18 +36,18 @@ _VALID_PLAN = {
     "steps": [{"type": "warmup", "duration_seconds": 300}],
 }
 
-_MULTI_PLAN = {
-    "morning": {
+_MULTI_PLAN = [
+    {
         "name": "Morning Ride",
         "sport": "cycling",
         "steps": [{"type": "warmup", "duration_seconds": 300}],
     },
-    "evening": {
+    {
         "name": "Evening Run",
         "sport": "running",
         "steps": [{"type": "cooldown", "duration_seconds": 600}],
     },
-}
+]
 
 _GARMIN_CRED = CredentialEntry(
     service="garmin",
@@ -53,35 +56,61 @@ _GARMIN_CRED = CredentialEntry(
     password="pw",
 )
 
+_GARMIN_TARGET = UploadTarget(
+    connector="garmin",
+    credential_service="garmin",
+    credential_login="me@x",
+)
+
+
+def _plan_file(tmp_path: Path, data: object, name: str = "plan.json") -> Path:
+    path = tmp_path / name
+    path.write_text(json.dumps(data))
+    return path
+
 
 # ---------------------------------------------------------------------------
 # _find_credential
 # ---------------------------------------------------------------------------
 
 
-def test_find_credential_by_service_and_url() -> None:
-    entries = [_GARMIN_CRED]
-    result = _find_credential(entries, "garmin", "https://connect.garmin.com", None)
-    assert result is _GARMIN_CRED
+def test_find_credential_matches_service_and_login() -> None:
+    assert _find_credential([_GARMIN_CRED], "garmin", "me@x") is _GARMIN_CRED
 
 
-def test_find_credential_not_found_returns_none() -> None:
-    entries = [_GARMIN_CRED]
-    result = _find_credential(entries, "strava", "https://strava.com", None)
-    assert result is None
+def test_find_credential_returns_none_when_absent() -> None:
+    assert _find_credential([_GARMIN_CRED], "strava", "me@x") is None
 
 
-def test_find_credential_with_login_filter() -> None:
-    other = CredentialEntry(
-        service="garmin",
-        url="https://connect.garmin.com",
-        login="other@x",
-        password="pw2",
-    )
-    result = _find_credential(
-        [_GARMIN_CRED, other], "garmin", "https://connect.garmin.com", "other@x"
-    )
-    assert result is other
+def test_find_credential_distinguishes_logins() -> None:
+    other = CredentialEntry(service="garmin", url="", login="other@x", password="pw2")
+    assert _find_credential([_GARMIN_CRED, other], "garmin", "other@x") is other
+
+
+def test_find_credential_does_not_fall_back_on_login_mismatch() -> None:
+    """A blank-login target must not silently match a different account."""
+    assert _find_credential([_GARMIN_CRED], "garmin", "") is None
+
+
+# ---------------------------------------------------------------------------
+# _keepass_paths
+# ---------------------------------------------------------------------------
+
+
+def test_keepass_paths_deduplicates_same_database() -> None:
+    a = CredentialEntry("garmin", "", "a@x", source="keepass", keepass_path="/db.kdbx")
+    b = CredentialEntry("garmin", "", "b@x", source="keepass", keepass_path="/db.kdbx")
+    assert _keepass_paths([a, b]) == ["/db.kdbx"]
+
+
+def test_keepass_paths_keeps_distinct_databases_in_order() -> None:
+    a = CredentialEntry("garmin", "", "a@x", source="keepass", keepass_path="/one.kdbx")
+    b = CredentialEntry("garmin", "", "b@x", source="keepass", keepass_path="/two.kdbx")
+    assert _keepass_paths([a, b]) == ["/one.kdbx", "/two.kdbx"]
+
+
+def test_keepass_paths_ignores_manual_credentials() -> None:
+    assert _keepass_paths([_GARMIN_CRED]) == []
 
 
 # ---------------------------------------------------------------------------
@@ -107,35 +136,13 @@ def test_keepass_provider_not_shared_between_caches() -> None:
     assert second._password == "correct"
 
 
-def test_upload_worker_clears_keepass_passwords_after_run(
-    qtbot, tmp_path: Path
-) -> None:
-    passwords = {"/db.kdbx": "master"}
-    worker = UploadWorker(
-        plan_path=str(tmp_path / "missing.json"),
-        workout_key=None,
-        connector_name="garmin",
-        credential_entries=[_GARMIN_CRED],
-        keepass_passwords=passwords,
-        credential_service="garmin",
-        credential_login="me@x",
-        cache_dir=tmp_path / "cache",
-    )
-    with qtbot.waitSignal(worker.finished, timeout=5000):
-        worker.start()
-    worker.wait()
-
-    assert passwords == {}
-
-
 # ---------------------------------------------------------------------------
 # make_app_icon
 # ---------------------------------------------------------------------------
 
 
 def test_make_app_icon_returns_icon(qtbot) -> None:
-    icon = make_app_icon()
-    assert not icon.isNull()
+    assert not make_app_icon().isNull()
 
 
 # ---------------------------------------------------------------------------
@@ -236,7 +243,6 @@ def test_credential_dialog_keepass_result(qtbot) -> None:
     dlg = CredentialDialog()
     qtbot.addWidget(dlg)
     dlg._service.setText("Garmin Connect")
-    dlg._url.setCurrentText("https://connect.garmin.com")
     dlg._login.setText("me@x")
     dlg._keepass_radio.setChecked(True)
     dlg._keepass_path.setText("/home/me/db.kdbx")
@@ -298,8 +304,6 @@ def test_credentials_tab_add_credential(qtbot, store: ConfigStore, monkeypatch) 
     tab = CredentialsTab(store)
     qtbot.addWidget(tab)
 
-    new_entry = CredentialEntry("garmin", "https://connect.garmin.com", "me@x", "pw")
-
     class _AcceptDialog:
         def __init__(self, *a, **k):
             pass
@@ -308,7 +312,7 @@ def test_credentials_tab_add_credential(qtbot, store: ConfigStore, monkeypatch) 
             return QDialog.DialogCode.Accepted
 
         def result_entry(self):
-            return new_entry
+            return _GARMIN_CRED
 
     monkeypatch.setattr("app.gui.app.CredentialDialog", _AcceptDialog)
     tab._add()
@@ -316,9 +320,22 @@ def test_credentials_tab_add_credential(qtbot, store: ConfigStore, monkeypatch) 
     assert store.load_credentials()[0].login == "me@x"
 
 
+def test_credentials_tab_hides_manual_password_in_table(
+    qtbot, store: ConfigStore
+) -> None:
+    store.save_credentials([_GARMIN_CRED])
+    tab = CredentialsTab(store)
+    qtbot.addWidget(tab)
+    cell = tab._table.item(0, 4)
+    assert cell is not None
+    assert "pw" not in cell.text()
+
+
 def test_credentials_tab_delete_credential(
     qtbot, store: ConfigStore, monkeypatch
 ) -> None:
+    from PySide6.QtWidgets import QMessageBox
+
     store.save_credentials([_GARMIN_CRED])
     tab = CredentialsTab(store)
     qtbot.addWidget(tab)
@@ -327,11 +344,7 @@ def test_credentials_tab_delete_credential(
     tab._table.selectRow(0)
     monkeypatch.setattr(
         "app.gui.app.QMessageBox.question",
-        lambda *a, **k: (
-            __import__(
-                "PySide6.QtWidgets", fromlist=["QMessageBox"]
-            ).QMessageBox.StandardButton.Yes
-        ),
+        lambda *a, **k: QMessageBox.StandardButton.Yes,
     )
     tab._delete()
     assert tab._table.rowCount() == 0
@@ -397,128 +410,266 @@ def test_credentials_tab_entries_returns_copy(qtbot, store: ConfigStore) -> None
     tab = CredentialsTab(store)
     qtbot.addWidget(tab)
     entries = tab.entries()
-    assert len(entries) == 1
     entries.clear()
-    assert len(tab.entries()) == 1  # original unchanged
+    assert len(tab.entries()) == 1
 
 
 # ---------------------------------------------------------------------------
-# UploadTab
+# TargetDialog
 # ---------------------------------------------------------------------------
 
 
-def test_upload_tab_loads_single_workout_file(
-    qtbot, store: ConfigStore, tmp_path: Path
-) -> None:
-    plan_file = tmp_path / "plan.json"
-    plan_file.write_text(json.dumps(_VALID_PLAN))
+def test_target_dialog_lists_credentials(qtbot) -> None:
+    dlg = TargetDialog([_GARMIN_CRED])
+    qtbot.addWidget(dlg)
+    assert dlg._credential.count() == 1
+    target = dlg.result_target()
+    assert target.connector == "garmin"
+    assert target.credential_service == "garmin"
+    assert target.credential_login == "me@x"
+
+
+def test_target_dialog_ok_disabled_without_credentials(qtbot) -> None:
+    dlg = TargetDialog([])
+    qtbot.addWidget(dlg)
+    assert dlg.result_target().credential_service == ""
+
+
+def test_target_dialog_preselects_existing_target(qtbot) -> None:
+    other = CredentialEntry(service="garmin", url="", login="other@x", password="p")
+    dlg = TargetDialog(
+        [_GARMIN_CRED, other],
+        target=UploadTarget("garmin", "garmin", "other@x"),
+    )
+    qtbot.addWidget(dlg)
+    assert dlg.result_target().credential_login == "other@x"
+
+
+# ---------------------------------------------------------------------------
+# UploadTab - targets table
+# ---------------------------------------------------------------------------
+
+
+def _upload_tab(qtbot, store: ConfigStore) -> UploadTab:
+    tab = UploadTab(store, CredentialsTab(store))
+    qtbot.addWidget(tab)
+    return tab
+
+
+def test_upload_tab_starts_with_no_targets(qtbot, store: ConfigStore) -> None:
+    assert _upload_tab(qtbot, store)._table.rowCount() == 0
+
+
+def test_upload_tab_loads_persisted_targets(qtbot, store: ConfigStore) -> None:
     store.save_credentials([_GARMIN_CRED])
-    tab = UploadTab(store, CredentialsTab(store))
-    qtbot.addWidget(tab)
-
-    tab._plan_path.setText(str(plan_file))
-    tab._reload_plan()
-
-    assert tab._workout_combo.count() == 1
-    assert "Morning Ride" in tab._workout_combo.currentText()
+    store.save_targets([_GARMIN_TARGET])
+    tab = _upload_tab(qtbot, store)
+    assert tab._table.rowCount() == 1
+    cell = tab._table.item(0, 0)
+    assert cell is not None
+    assert cell.text() == "garmin"
 
 
-def test_upload_tab_loads_multi_workout_file(
-    qtbot, store: ConfigStore, tmp_path: Path
+def test_upload_tab_marks_target_with_missing_credential(
+    qtbot, store: ConfigStore
 ) -> None:
-    plan_file = tmp_path / "multi.json"
-    plan_file.write_text(json.dumps(_MULTI_PLAN))
-    tab = UploadTab(store, CredentialsTab(store))
-    qtbot.addWidget(tab)
-
-    tab._plan_path.setText(str(plan_file))
-    tab._reload_plan()
-
-    assert tab._workout_combo.count() == 2
+    store.save_targets([_GARMIN_TARGET])  # no credentials saved
+    tab = _upload_tab(qtbot, store)
+    cell = tab._table.item(0, 1)
+    assert cell is not None
+    assert "missing" in cell.text()
 
 
-def test_upload_tab_invalid_file_shows_error(
-    qtbot, store: ConfigStore, tmp_path: Path
+def test_upload_tab_add_target(qtbot, store: ConfigStore, monkeypatch) -> None:
+    store.save_credentials([_GARMIN_CRED])
+    tab = _upload_tab(qtbot, store)
+
+    class _AcceptDialog:
+        def __init__(self, *a, **k):
+            pass
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+        def result_target(self):
+            return _GARMIN_TARGET
+
+    monkeypatch.setattr("app.gui.app.TargetDialog", _AcceptDialog)
+    tab._add_target()
+    assert tab._table.rowCount() == 1
+    assert store.load_targets()[0].connector == "garmin"
+
+
+def test_upload_tab_add_target_warns_without_credentials(
+    qtbot, store: ConfigStore, monkeypatch
 ) -> None:
-    bad_file = tmp_path / "bad.json"
-    bad_file.write_text("{not valid json}")
-    tab = UploadTab(store, CredentialsTab(store))
-    qtbot.addWidget(tab)
-
-    tab._plan_path.setText(str(bad_file))
-    tab._reload_plan()
-
-    assert tab._workout_combo.count() == 0
-    assert "ERROR" in tab._status.text()
+    warned: list[str] = []
+    monkeypatch.setattr(
+        "app.gui.app.QMessageBox.warning", lambda *a, **k: warned.append(a[2])
+    )
+    tab = _upload_tab(qtbot, store)
+    tab._add_target()
+    assert warned
+    assert tab._table.rowCount() == 0
 
 
-def test_upload_tab_browse_plan_sets_path(
+def test_upload_tab_delete_target(qtbot, store: ConfigStore) -> None:
+    store.save_credentials([_GARMIN_CRED])
+    store.save_targets([_GARMIN_TARGET])
+    tab = _upload_tab(qtbot, store)
+    tab._table.selectRow(0)
+    tab._delete_target()
+    assert tab._table.rowCount() == 0
+    assert store.load_targets() == []
+
+
+def test_upload_tab_delete_target_noop_without_selection(
+    qtbot, store: ConfigStore
+) -> None:
+    store.save_credentials([_GARMIN_CRED])
+    store.save_targets([_GARMIN_TARGET])
+    tab = _upload_tab(qtbot, store)
+    tab._table.clearSelection()
+    tab._table.setCurrentCell(-1, -1)
+    tab._delete_target()
+    assert tab._table.rowCount() == 1
+
+
+def test_upload_tab_edit_target(qtbot, store: ConfigStore, monkeypatch) -> None:
+    other = CredentialEntry(service="garmin", url="", login="other@x", password="p")
+    store.save_credentials([_GARMIN_CRED, other])
+    store.save_targets([_GARMIN_TARGET])
+    tab = _upload_tab(qtbot, store)
+
+    class _AcceptDialog:
+        def __init__(self, *a, **k):
+            pass
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+        def result_target(self):
+            return UploadTarget("garmin", "garmin", "other@x")
+
+    monkeypatch.setattr("app.gui.app.TargetDialog", _AcceptDialog)
+    tab._table.selectRow(0)
+    tab._edit_target()
+    assert store.load_targets()[0].credential_login == "other@x"
+
+
+# ---------------------------------------------------------------------------
+# UploadTab - plan file and upload guards
+# ---------------------------------------------------------------------------
+
+
+def test_upload_tab_browse_plan_sets_and_persists_path(
     qtbot, store: ConfigStore, monkeypatch, tmp_path: Path
 ) -> None:
-    plan_file = tmp_path / "plan.json"
-    plan_file.write_text(json.dumps(_VALID_PLAN))
-
     from PySide6.QtWidgets import QFileDialog
 
+    plan_file = _plan_file(tmp_path, _VALID_PLAN)
     monkeypatch.setattr(
         QFileDialog, "getOpenFileName", lambda *a, **k: (str(plan_file), "")
     )
-    tab = UploadTab(store, CredentialsTab(store))
-    qtbot.addWidget(tab)
+    tab = _upload_tab(qtbot, store)
     tab._browse_plan()
     assert tab._plan_path.text() == str(plan_file)
-    assert tab._workout_combo.count() == 1
+    assert store.load_gui_config().last_plan_path == str(plan_file)
 
 
 def test_upload_tab_warns_when_no_plan_path(
     qtbot, store: ConfigStore, monkeypatch
 ) -> None:
-    warned = []
+    warned: list[str] = []
     monkeypatch.setattr(
-        "app.gui.app.QMessageBox.warning",
-        lambda *a, **k: warned.append(a[2]),
+        "app.gui.app.QMessageBox.warning", lambda *a, **k: warned.append(a[2])
     )
-    tab = UploadTab(store, CredentialsTab(store))
-    qtbot.addWidget(tab)
+    tab = _upload_tab(qtbot, store)
     tab._plan_path.setText("")
     tab._run_upload()
     assert any("plan" in w.lower() for w in warned)
 
 
-def test_upload_tab_warns_when_no_credential(
-    qtbot, store: ConfigStore, tmp_path: Path, monkeypatch
+def test_upload_tab_warns_when_no_targets(
+    qtbot, store: ConfigStore, monkeypatch, tmp_path: Path
 ) -> None:
-    plan_file = tmp_path / "plan.json"
-    plan_file.write_text(json.dumps(_VALID_PLAN))
-    warned = []
+    warned: list[str] = []
     monkeypatch.setattr(
-        "app.gui.app.QMessageBox.warning",
-        lambda *a, **k: warned.append(a[2]),
+        "app.gui.app.QMessageBox.warning", lambda *a, **k: warned.append(a[2])
     )
-    tab = UploadTab(store, CredentialsTab(store))
-    qtbot.addWidget(tab)
-    tab._plan_path.setText(str(plan_file))
-    tab._reload_plan()
+    tab = _upload_tab(qtbot, store)
+    tab._plan_path.setText(str(_plan_file(tmp_path, _VALID_PLAN)))
     tab._run_upload()
-    assert any("credential" in w.lower() for w in warned)
+    assert any("target" in w.lower() for w in warned)
 
 
-def test_upload_tab_keepass_paths_needed_for_keepass_cred() -> None:
-    cred = CredentialEntry(
-        service="garmin",
-        url="",
-        login="me@x",
-        source="keepass",
-        keepass_path="/db.kdbx",
+def test_upload_tab_warns_when_target_credential_missing(
+    qtbot, store: ConfigStore, monkeypatch, tmp_path: Path
+) -> None:
+    store.save_targets([_GARMIN_TARGET])  # credential was deleted
+    warned: list[str] = []
+    monkeypatch.setattr(
+        "app.gui.app.QMessageBox.warning", lambda *a, **k: warned.append(a[2])
     )
-    paths = UploadTab._keepass_paths_needed(cred)
-    assert paths == ["/db.kdbx"]
+    tab = _upload_tab(qtbot, store)
+    tab._plan_path.setText(str(_plan_file(tmp_path, _VALID_PLAN)))
+    tab._run_upload()
+    assert any("no longer exist" in w for w in warned)
+    assert tab._worker is None
 
 
-def test_upload_tab_keepass_paths_empty_for_manual_cred() -> None:
-    cred = CredentialEntry(service="garmin", url="", login="me@x", password="pw")
-    paths = UploadTab._keepass_paths_needed(cred)
-    assert paths == []
+def test_upload_tab_resolve_targets_reports_missing(qtbot, store: ConfigStore) -> None:
+    store.save_targets([_GARMIN_TARGET])
+    tab = _upload_tab(qtbot, store)
+    resolved, missing = tab._resolve_targets()
+    assert resolved == []
+    assert missing == ["garmin / garmin"]
+
+
+def test_upload_tab_resolve_targets_succeeds(qtbot, store: ConfigStore) -> None:
+    store.save_credentials([_GARMIN_CRED])
+    store.save_targets([_GARMIN_TARGET])
+    tab = _upload_tab(qtbot, store)
+    resolved, missing = tab._resolve_targets()
+    assert missing == []
+    assert resolved[0].credential is not None
+    assert resolved[0].credential.login == "me@x"
+
+
+def test_upload_tab_cancelled_keepass_prompt_aborts_upload(
+    qtbot, store: ConfigStore, monkeypatch, tmp_path: Path
+) -> None:
+    kp_cred = CredentialEntry(
+        service="garmin", url="", login="me@x", source="keepass", keepass_path="/d.kdbx"
+    )
+    store.save_credentials([kp_cred])
+    store.save_targets([_GARMIN_TARGET])
+    tab = _upload_tab(qtbot, store)
+    tab._plan_path.setText(str(_plan_file(tmp_path, _VALID_PLAN)))
+
+    monkeypatch.setattr("app.gui.app.QInputDialog.getText", lambda *a, **k: ("", False))
+    tab._run_upload()
+    assert tab._worker is None
+
+
+def test_upload_tab_prompts_once_per_keepass_file(
+    qtbot, store: ConfigStore, monkeypatch
+) -> None:
+    """Two credentials in one .kdbx must trigger a single password prompt."""
+    calls: list[str] = []
+
+    def _fake_get_text(*args, **kwargs) -> tuple[str, bool]:
+        calls.append(args[2])
+        return "secret", True
+
+    monkeypatch.setattr("app.gui.app.QInputDialog.getText", _fake_get_text)
+    tab = _upload_tab(qtbot, store)
+    a = CredentialEntry("garmin", "", "a@x", source="keepass", keepass_path="/db.kdbx")
+    b = CredentialEntry("garmin", "", "b@x", source="keepass", keepass_path="/db.kdbx")
+    proceed, passwords = tab._prompt_keepass_passwords(_keepass_paths([a, b]))
+    assert proceed
+    assert len(calls) == 1
+    assert passwords == {"/db.kdbx": "secret"}
 
 
 # ---------------------------------------------------------------------------
@@ -526,88 +677,133 @@ def test_upload_tab_keepass_paths_empty_for_manual_cred() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_upload_worker_emits_error_on_missing_file(qtbot, tmp_path: Path) -> None:
+def _run_worker(qtbot, worker: UploadWorker) -> tuple[list[str], list[int]]:
     lines: list[str] = []
     results: list[int] = []
-
-    worker = UploadWorker(
-        plan_path=str(tmp_path / "nonexistent.json"),
-        workout_key=None,
-        connector_name="garmin",
-        credential_entries=[_GARMIN_CRED],
-        keepass_passwords={},
-        credential_service="garmin",
-        credential_login="me@x",
-        cache_dir=tmp_path / "cache",
-    )
     worker.log_line.connect(lines.append)
     worker.finished.connect(results.append)
-
     with qtbot.waitSignal(worker.finished, timeout=5000):
         worker.start()
     worker.wait()
-
-    assert results == [1]
-    assert any("ERROR" in ln or "error" in ln.lower() for ln in lines)
+    return lines, results
 
 
-def test_upload_worker_emits_error_on_missing_credential(qtbot, tmp_path: Path) -> None:
-    plan_file = tmp_path / "plan.json"
-    plan_file.write_text(json.dumps(_VALID_PLAN))
-    lines: list[str] = []
-    results: list[int] = []
-
-    worker = UploadWorker(
-        plan_path=str(plan_file),
-        workout_key=None,
-        connector_name="garmin",
-        credential_entries=[],  # no credentials
-        keepass_passwords={},
-        credential_service="garmin",
-        credential_login="nobody@x",
+def _worker(plan_path: Path, tmp_path: Path, **kwargs) -> UploadWorker:
+    return UploadWorker(
+        plan_path=str(plan_path),
+        targets=kwargs.pop("targets", [ResolvedTarget("garmin", _GARMIN_CRED)]),
+        keepass_passwords=kwargs.pop("keepass_passwords", {}),
         cache_dir=tmp_path / "cache",
     )
-    worker.log_line.connect(lines.append)
-    worker.finished.connect(results.append)
 
-    with qtbot.waitSignal(worker.finished, timeout=5000):
-        worker.start()
-    worker.wait()
 
+def test_upload_worker_errors_on_missing_file(qtbot, tmp_path: Path) -> None:
+    lines, results = _run_worker(
+        qtbot, _worker(tmp_path / "nonexistent.json", tmp_path)
+    )
+    assert results == [1]
+    assert any("ERROR" in ln for ln in lines)
+
+
+def test_upload_worker_errors_without_targets(qtbot, tmp_path: Path) -> None:
+    plan = _plan_file(tmp_path, _VALID_PLAN)
+    lines, results = _run_worker(qtbot, _worker(plan, tmp_path, targets=[]))
+    assert results == [1]
+    assert any("No upload targets" in ln for ln in lines)
+
+
+def test_upload_worker_errors_on_invalid_json(qtbot, tmp_path: Path) -> None:
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not json}")
+    _, results = _run_worker(qtbot, _worker(bad, tmp_path))
     assert results == [1]
 
 
-def test_upload_worker_success(qtbot, tmp_path: Path) -> None:
-    plan_file = tmp_path / "plan.json"
-    plan_file.write_text(json.dumps(_VALID_PLAN))
-    lines: list[str] = []
-    results: list[int] = []
-
-    mock_connector = MagicMock()
-    mock_connector.upload.return_value = "w-99"
-
-    worker = UploadWorker(
-        plan_path=str(plan_file),
-        workout_key=None,
-        connector_name="garmin",
-        credential_entries=[_GARMIN_CRED],
-        keepass_passwords={},
-        credential_service="garmin",
-        credential_login="me@x",
-        cache_dir=tmp_path / "cache",
-    )
-    worker.log_line.connect(lines.append)
-    worker.finished.connect(results.append)
-
-    with (
-        patch("app.connectors.registry.get_connector", return_value=mock_connector),
-        qtbot.waitSignal(worker.finished, timeout=5000),
-    ):
-        worker.start()
-    worker.wait()
-
+def test_upload_worker_uploads_single_workout(qtbot, tmp_path: Path) -> None:
+    plan = _plan_file(tmp_path, _VALID_PLAN)
+    connector = MagicMock()
+    connector.upload.return_value = "w-1"
+    with patch("app.connectors.registry.get_connector", return_value=connector):
+        lines, results = _run_worker(qtbot, _worker(plan, tmp_path))
     assert results == [0]
-    assert any("Done" in ln for ln in lines)
+    assert connector.upload.call_count == 1
+    assert any("1/1" in ln for ln in lines)
+
+
+def test_upload_worker_uploads_every_workout_in_file(qtbot, tmp_path: Path) -> None:
+    plan = _plan_file(tmp_path, _MULTI_PLAN, "multi.json")
+    connector = MagicMock()
+    connector.upload.return_value = "w-n"
+    with patch("app.connectors.registry.get_connector", return_value=connector):
+        lines, results = _run_worker(qtbot, _worker(plan, tmp_path))
+    assert results == [0]
+    assert connector.upload.call_count == 2
+    assert any("2/2" in ln for ln in lines)
+
+
+def test_upload_worker_logs_in_once_per_target(qtbot, tmp_path: Path) -> None:
+    plan = _plan_file(tmp_path, _MULTI_PLAN, "multi.json")
+    connector = MagicMock()
+    connector.upload.return_value = "w-n"
+    with patch("app.connectors.registry.get_connector", return_value=connector):
+        _run_worker(qtbot, _worker(plan, tmp_path))
+    connector.login.assert_called_once()
+
+
+def test_upload_worker_uploads_to_every_target(qtbot, tmp_path: Path) -> None:
+    plan = _plan_file(tmp_path, _MULTI_PLAN, "multi.json")
+    second = CredentialEntry("garmin", "", "two@x", password="pw2")
+    targets = [
+        ResolvedTarget("garmin", _GARMIN_CRED),
+        ResolvedTarget("garmin", second),
+    ]
+    connector = MagicMock()
+    connector.upload.return_value = "w-n"
+    with patch("app.connectors.registry.get_connector", return_value=connector):
+        _, results = _run_worker(qtbot, _worker(plan, tmp_path, targets=targets))
+    assert results == [0]
+    assert connector.upload.call_count == 4  # 2 workouts x 2 targets
+
+
+def test_upload_worker_continues_after_one_workout_fails(qtbot, tmp_path: Path) -> None:
+    plan = _plan_file(tmp_path, _MULTI_PLAN, "multi.json")
+    connector = MagicMock()
+    connector.upload.side_effect = [RuntimeError("boom"), "w-2"]
+    with patch("app.connectors.registry.get_connector", return_value=connector):
+        _, results = _run_worker(qtbot, _worker(plan, tmp_path))
+    assert results == [1]
+    assert connector.upload.call_count == 2
+
+
+def test_upload_worker_login_failure_skips_target(qtbot, tmp_path: Path) -> None:
+    plan = _plan_file(tmp_path, _MULTI_PLAN, "multi.json")
+    connector = MagicMock()
+    connector.login.side_effect = RuntimeError("bad password")
+    with patch("app.connectors.registry.get_connector", return_value=connector):
+        lines, results = _run_worker(qtbot, _worker(plan, tmp_path))
+    assert results == [1]
+    connector.upload.assert_not_called()
+    assert any("Login" in ln for ln in lines)
+
+
+def test_upload_worker_caches_payload_per_workout(qtbot, tmp_path: Path) -> None:
+    plan = _plan_file(tmp_path, _MULTI_PLAN, "multi.json")
+    connector = MagicMock()
+    connector.upload.return_value = "w-n"
+    with patch("app.connectors.registry.get_connector", return_value=connector):
+        _run_worker(qtbot, _worker(plan, tmp_path))
+    cached = {p.name for p in (tmp_path / "cache" / "workouts").iterdir()}
+    assert any("morning" in n for n in cached)
+    assert any("evening" in n for n in cached)
+
+
+def test_upload_worker_clears_keepass_passwords_after_run(
+    qtbot, tmp_path: Path
+) -> None:
+    passwords = {"/db.kdbx": "master"}
+    worker = _worker(tmp_path / "missing.json", tmp_path, keepass_passwords=passwords)
+    _run_worker(qtbot, worker)
+    assert passwords == {}
 
 
 # ---------------------------------------------------------------------------
@@ -621,11 +817,24 @@ def test_main_window_has_upload_and_credentials_tabs(qtbot, store: ConfigStore) 
     tabs = win.centralWidget()
     assert isinstance(tabs, QTabWidget)
     labels = [tabs.tabText(i) for i in range(tabs.count())]
-    assert "Upload" in labels
-    assert "Credentials" in labels
+    assert labels == ["Upload", "Credentials"]
 
 
 def test_main_window_title(qtbot, store: ConfigStore) -> None:
     win = MainWindow(store)
     qtbot.addWidget(win)
     assert "Training Plan Generator" in win.windowTitle()
+
+
+def test_main_window_refreshes_targets_when_returning_to_upload_tab(
+    qtbot, store: ConfigStore
+) -> None:
+    store.save_targets([_GARMIN_TARGET])
+    win = MainWindow(store)
+    qtbot.addWidget(win)
+    # Credential added after the Upload tab was built.
+    win._creds_tab._entries.append(_GARMIN_CRED)
+    win._on_tab_changed(0)
+    cell = win._upload_tab._table.item(0, 1)
+    assert cell is not None
+    assert "missing" not in cell.text()

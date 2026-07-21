@@ -46,7 +46,6 @@ def _upload_args(
     creds_keepass=None,
     keepass_password=None,
     login=None,
-    workout_key=None,
 ):
     import argparse
 
@@ -60,7 +59,6 @@ def _upload_args(
         creds_keepass=creds_keepass,
         keepass_password=keepass_password,
         login=login,
-        workout_key=workout_key,
     )
     return ns
 
@@ -352,88 +350,97 @@ def test_parser_build_succeeds():
 
 # --- multi-workout file support ---
 
-_MULTI_PLAN = {
-    "morning": {
+_MULTI_PLAN = [
+    {
         "name": "Morning Ride",
         "sport": "cycling",
         "steps": [{"type": "warmup", "duration_seconds": 300}],
     },
-    "evening": {
+    {
         "name": "Evening Run",
         "sport": "running",
         "steps": [{"type": "cooldown", "duration_seconds": 600}],
     },
-}
+]
 
 
-def test_upload_multi_workout_with_key_succeeds(tmp_path):
-    creds_file = _write_garmin_creds(tmp_path)
+def _multi_plan_file(tmp_path):
     plan_file = tmp_path / "multi.json"
     plan_file.write_text(json.dumps(_MULTI_PLAN))
+    return plan_file
+
+
+def test_upload_multi_workout_uploads_every_workout(tmp_path):
+    creds_file = _write_garmin_creds(tmp_path)
     args = _upload_args(
-        tmp_path,
-        plan=plan_file,
-        creds_json=str(creds_file),
-        workout_key="morning",
+        tmp_path, plan=_multi_plan_file(tmp_path), creds_json=str(creds_file)
     )
     mock_connector = MagicMock()
     mock_connector.upload.return_value = "w-multi"
     with patch("app.cli.get_connector", return_value=mock_connector):
         result = _cmd_upload(args)
     assert result == 0
-    mock_connector.upload.assert_called_once()
+    assert mock_connector.upload.call_count == 2
 
 
-def test_upload_multi_workout_no_key_returns_error(tmp_path):
+def test_upload_multi_workout_logs_in_only_once(tmp_path):
     creds_file = _write_garmin_creds(tmp_path)
-    plan_file = tmp_path / "multi.json"
-    plan_file.write_text(json.dumps(_MULTI_PLAN))
-    args = _upload_args(tmp_path, plan=plan_file, creds_json=str(creds_file))
-    result = _cmd_upload(args)
-    assert result == 1
+    args = _upload_args(
+        tmp_path, plan=_multi_plan_file(tmp_path), creds_json=str(creds_file)
+    )
+    mock_connector = MagicMock()
+    mock_connector.upload.return_value = "w-multi"
+    with patch("app.cli.get_connector", return_value=mock_connector):
+        _cmd_upload(args)
+    mock_connector.login.assert_called_once()
 
 
-def test_upload_multi_workout_wrong_key_returns_error(tmp_path):
+def test_upload_multi_workout_caches_each_workout(tmp_path):
     creds_file = _write_garmin_creds(tmp_path)
-    plan_file = tmp_path / "multi.json"
-    plan_file.write_text(json.dumps(_MULTI_PLAN))
+    cache_dir = tmp_path / "cache"
     args = _upload_args(
         tmp_path,
-        plan=plan_file,
+        plan=_multi_plan_file(tmp_path),
         creds_json=str(creds_file),
-        workout_key="nonexistent",
+        cache_dir=cache_dir,
     )
-    result = _cmd_upload(args)
-    assert result == 1
+    mock_connector = MagicMock()
+    mock_connector.upload.return_value = "w-multi"
+    with patch("app.cli.get_connector", return_value=mock_connector):
+        _cmd_upload(args)
+    cached = {p.name for p in (cache_dir / "workouts").iterdir()}
+    assert any("morning" in n for n in cached)
+    assert any("evening" in n for n in cached)
 
 
-def test_upload_single_workout_ignores_workout_key(tmp_path):
+def test_upload_multi_workout_partial_failure_returns_error(tmp_path):
     creds_file = _write_garmin_creds(tmp_path)
-    args = _upload_args(tmp_path, creds_json=str(creds_file), workout_key="any")
+    args = _upload_args(
+        tmp_path, plan=_multi_plan_file(tmp_path), creds_json=str(creds_file)
+    )
+    mock_connector = MagicMock()
+    mock_connector.upload.side_effect = ["w-1", RuntimeError("boom")]
+    with patch("app.cli.get_connector", return_value=mock_connector):
+        result = _cmd_upload(args)
+    assert result == 1
+    # The first workout must still have been attempted and uploaded.
+    assert mock_connector.upload.call_count == 2
+
+
+def test_upload_single_workout_object_still_works(tmp_path):
+    creds_file = _write_garmin_creds(tmp_path)
+    args = _upload_args(tmp_path, creds_json=str(creds_file))
     mock_connector = MagicMock()
     mock_connector.upload.return_value = "w-1"
     with patch("app.cli.get_connector", return_value=mock_connector):
         result = _cmd_upload(args)
     assert result == 0
+    mock_connector.upload.assert_called_once()
 
 
-def test_parser_accepts_workout_key_flag(tmp_path):
-    parser = _build_parser()
+def test_upload_empty_list_returns_error(tmp_path):
     creds_file = _write_garmin_creds(tmp_path)
-    plan = _plan_file(tmp_path)
-    args = parser.parse_args(
-        [
-            "upload",
-            "--plan",
-            str(plan),
-            "--connector",
-            "garmin",
-            "--credentials-provider",
-            "json",
-            "--creds-json",
-            str(creds_file),
-            "--workout-key",
-            "morning",
-        ]
-    )
-    assert args.workout_key == "morning"
+    plan_file = tmp_path / "empty.json"
+    plan_file.write_text("[]")
+    args = _upload_args(tmp_path, plan=plan_file, creds_json=str(creds_file))
+    assert _cmd_upload(args) == 1

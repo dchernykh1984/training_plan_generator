@@ -34,14 +34,23 @@ class CredentialEntry:
 
 
 @dataclass
+class UploadTarget:
+    """One upload destination: a connector plus the credential to use for it.
+
+    The credential is referenced by (service, login) so that editing the
+    credential itself does not invalidate the target.
+    """
+
+    connector: str = "garmin"
+    credential_service: str = ""
+    credential_login: str = ""
+
+
+@dataclass
 class GuiConfig:
     """Last-used upload settings, persisted across sessions."""
 
     last_plan_path: str = ""
-    last_workout_key: str = ""
-    last_connector: str = "garmin"
-    last_credential_service: str = ""
-    last_credential_login: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +81,10 @@ class ConfigStore:
     def _config_path(self) -> Path:
         return self._dir / "config.json"
 
+    @property
+    def targets_path(self) -> Path:
+        return self._dir / "targets.json"
+
     # ------------------------------------------------------------------
     # Credentials
     # ------------------------------------------------------------------
@@ -93,6 +106,31 @@ class ConfigStore:
         )
 
     # ------------------------------------------------------------------
+    # Upload targets
+    # ------------------------------------------------------------------
+
+    def load_targets(self) -> list[UploadTarget]:
+        if not self.targets_path.exists():
+            return []
+        raw = json.loads(self.targets_path.read_text(encoding="utf-8"))
+        if not isinstance(raw, list):
+            raise ValueError("targets file must contain a JSON array")
+        return [_parse_target(t) for t in raw]
+
+    def save_targets(self, targets: list[UploadTarget]) -> None:
+        _atomic_write(
+            self.targets_path,
+            [
+                {
+                    "connector": t.connector,
+                    "credential_service": t.credential_service,
+                    "credential_login": t.credential_login,
+                }
+                for t in targets
+            ],
+        )
+
+    # ------------------------------------------------------------------
     # GUI config
     # ------------------------------------------------------------------
 
@@ -103,16 +141,7 @@ class ConfigStore:
         return _parse_gui_config(raw)
 
     def save_gui_config(self, config: GuiConfig) -> None:
-        _atomic_write(
-            self._config_path,
-            {
-                "last_plan_path": config.last_plan_path,
-                "last_workout_key": config.last_workout_key,
-                "last_connector": config.last_connector,
-                "last_credential_service": config.last_credential_service,
-                "last_credential_login": config.last_credential_login,
-            },
-        )
+        _atomic_write(self._config_path, {"last_plan_path": config.last_plan_path})
 
 
 # ---------------------------------------------------------------------------
@@ -151,11 +180,13 @@ def _serialize_credential(e: CredentialEntry) -> dict:
     return d
 
 
-def _parse_gui_config(raw: dict) -> GuiConfig:
-    return GuiConfig(
-        last_plan_path=raw.get("last_plan_path", ""),
-        last_workout_key=raw.get("last_workout_key", ""),
-        last_connector=raw.get("last_connector", "garmin"),
-        last_credential_service=raw.get("last_credential_service", ""),
-        last_credential_login=raw.get("last_credential_login", ""),
+def _parse_target(raw: dict) -> UploadTarget:
+    return UploadTarget(
+        connector=raw.get("connector", "garmin"),
+        credential_service=raw.get("credential_service", ""),
+        credential_login=raw.get("credential_login", ""),
     )
+
+
+def _parse_gui_config(raw: dict) -> GuiConfig:
+    return GuiConfig(last_plan_path=raw.get("last_plan_path", ""))

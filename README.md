@@ -122,18 +122,23 @@ sudo apt install libegl1 libgl1 libxkbcommon0 libdbus-1-3
 
 The window has two tabs:
 
-- **Upload** - pick a plan file, choose a workout (the dropdown lists every workout
-  when the file contains a dict), select connector and credential, then press
-  **Upload**. Progress and warnings appear in the log pane below the button.
 - **Credentials** - add, edit and delete accounts. Each entry is either **manual**
   (login and password stored locally) or **KeePass** (only the path to the `.kdbx`
   file is stored).
+- **Upload** - pick a plan file, then build a table of **upload targets**. Each row
+  is one destination: a connector plus one of the credentials from the Credentials
+  tab. Pressing **Upload** sends *every workout in the file* to *every target in the
+  table*; progress and warnings appear in the log pane below the button.
 
-Credentials and the last-used upload settings are kept in
-`~/.config/training-plan-generator/`. **The KeePass master password is never written
-to disk** - it is requested when an upload starts and held in memory only for that
-run. If several credentials point at the same `.kdbx` file, the password is asked
-once per upload rather than once per credential.
+There is no workout picker - the whole file is always uploaded. To upload a subset,
+put those workouts in their own file.
+
+Credentials, targets and the last-used plan path live in
+`~/.config/training-plan-generator/` (`credentials.json`, `targets.json`,
+`config.json`). **The KeePass master password is never written to disk** - it is
+requested when an upload starts, held in memory for that run only, and discarded
+when the run ends. If several targets read from the same `.kdbx` file, the password
+is asked once per upload rather than once per target.
 
 ### Command-line upload
 
@@ -174,9 +179,11 @@ uv run training-plan-generator upload \
 
 ### JSON plan format
 
-A plan file contains either a **single workout** or a **named dict of workouts**.
+A plan file contains either a **single workout** or a **list of workouts**. Every
+workout in the file is uploaded - there is no way to select just one, so split the
+file if you need a subset.
 
-**Single workout** (original format):
+**Single workout** (a JSON object):
 
 ```json
 {
@@ -186,37 +193,30 @@ A plan file contains either a **single workout** or a **named dict of workouts**
 }
 ```
 
-**Dict of workouts** (new format - multiple workouts in one file):
+**Several workouts** (a JSON array of those same objects):
 
 ```json
-{
-  "morning": {
+[
+  {
     "name": "Morning Ride",
     "sport": "cycling",
     "steps": [...]
   },
-  "evening": {
+  {
     "name": "Evening Run",
     "sport": "running",
     "steps": [...]
   }
-}
+]
 ```
 
-When a file contains multiple workouts, pass `--workout-key <key>` on the CLI to
-select which one to upload:
+The two forms are interchangeable everywhere: a single object behaves exactly like a
+one-element array. Both the CLI and the GUI log in once and then upload each workout
+in order. If one workout fails the rest are still attempted, and the CLI exits with
+status 1 to report the partial failure.
 
-```bash
-uv run training-plan-generator upload \
-  --plan workouts.json \
-  --workout-key morning \
-  --connector garmin \
-  --credentials-provider json \
-  --creds-json credentials.json
-```
-
-If `--workout-key` is omitted and the file contains more than one workout, the CLI
-prints the available keys and exits with an error.
+Workout names need not be unique, but the cache writes one file per name, so
+identical names overwrite each other in `logs/workouts/`.
 
 See [`templates/workout_garmin.json`](templates/workout_garmin.json) for a ready-to-edit example.
 
