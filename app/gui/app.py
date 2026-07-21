@@ -118,6 +118,12 @@ class UploadWorker(QThread):
         if plans is None:
             return 1
 
+        # One source snapshot per run - it covers every workout in the file.
+        source_path = cache.save_source_plan(
+            Path(self._plan_path).stem, self._source_bytes or b""
+        )
+        log.info(f"source cached: {source_path}")
+
         failures = 0
         for target in self._targets:
             failures += self._upload_to_target(target, plans, cache, log)
@@ -219,7 +225,6 @@ class UploadWorker(QThread):
         payload_path = cache.save_connector_payload(
             plan.name, connector_name, adapt_result.payload
         )
-        cache.save_source_plan(plan.name, self._source_bytes or b"")
         self.log_line.emit(f"  done (id={workout_id}), cached: {payload_path}")
         return True
 

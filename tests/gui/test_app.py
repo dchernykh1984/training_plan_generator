@@ -797,6 +797,18 @@ def test_upload_worker_caches_payload_per_workout(qtbot, tmp_path: Path) -> None
     assert any("evening" in n for n in cached)
 
 
+def test_upload_worker_saves_one_source_snapshot_per_run(qtbot, tmp_path: Path) -> None:
+    """The whole file is one source artifact, not one copy per workout."""
+    plan = _plan_file(tmp_path, _MULTI_PLAN, "multi.json")
+    connector = MagicMock()
+    connector.upload.return_value = "w-n"
+    with patch("app.connectors.registry.get_connector", return_value=connector):
+        _run_worker(qtbot, _worker(plan, tmp_path))
+    workouts_dir = tmp_path / "cache" / "workouts"
+    sources = [p.name for p in workouts_dir.iterdir() if ".source." in p.name]
+    assert sources == ["multi.source.json"]
+
+
 def test_upload_worker_clears_keepass_passwords_after_run(
     qtbot, tmp_path: Path
 ) -> None:
