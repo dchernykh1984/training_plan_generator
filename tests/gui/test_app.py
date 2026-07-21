@@ -500,6 +500,7 @@ def test_upload_worker_emits_error_on_missing_file(qtbot, tmp_path: Path) -> Non
 
     with qtbot.waitSignal(worker.finished, timeout=5000):
         worker.start()
+    worker.wait()
 
     assert results == [1]
     assert any("ERROR" in ln or "error" in ln.lower() for ln in lines)
@@ -526,6 +527,7 @@ def test_upload_worker_emits_error_on_missing_credential(qtbot, tmp_path: Path) 
 
     with qtbot.waitSignal(worker.finished, timeout=5000):
         worker.start()
+    worker.wait()
 
     assert results == [1]
 
@@ -557,6 +559,7 @@ def test_upload_worker_success(qtbot, tmp_path: Path) -> None:
         qtbot.waitSignal(worker.finished, timeout=5000),
     ):
         worker.start()
+    worker.wait()
 
     assert results == [0]
     assert any("Done" in ln for ln in lines)
