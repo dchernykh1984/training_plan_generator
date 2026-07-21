@@ -691,6 +691,7 @@ class UploadTab(QWidget):
     def _on_finished(self, rc: int) -> None:
         self._upload_btn.setEnabled(True)
         self._status.setText("Done." if rc == 0 else "Upload failed.")
+        self._worker = None
 
 
 # ---------------------------------------------------------------------------
