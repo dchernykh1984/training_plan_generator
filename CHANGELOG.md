@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/dchernykh1984/training_plan_generator/compare/v0.1.0...v0.1.1) (2026-07-21)
+
+
+### Bug Fixes
+
+* reliable release builds (linux-aarch64 on ubuntu-24.04, drop Intel macOS) ([d65c369](https://github.com/dchernykh1984/training_plan_generator/commit/d65c36996d992d3d5ec6e94acafb8533e715ee0e))
+
 ## 0.1.0 (2026-07-21)
 
 
