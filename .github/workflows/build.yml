@@ -1,0 +1,115 @@
+name: build
+
+# Reusable build. With an empty release_tag it runs a fast Linux x64 smoke
+# build (used on pull requests). With a release_tag it builds the full platform
+# matrix and uploads each portable artifact to that GitHub Release.
+#
+# It is called in the SAME run as release-please (see release-please.yml) so the
+# assets actually attach: a release created by GITHUB_TOKEN does not, by design,
+# trigger a separate `release: published` workflow.
+
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: "Release tag to attach assets to; empty => Linux-only smoke build, no upload."
+        type: string
+        default: ""
+
+env:
+  APP_NAME: training-plan-generator
+
+jobs:
+  targets:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        shell: bash
+        run: |
+          full='{"include":[{"os":"ubuntu-22.04","name":"linux-x86_64"},{"os":"ubuntu-22.04-arm","name":"linux-aarch64"},{"os":"windows-latest","name":"windows-x64"},{"os":"windows-11-arm","name":"windows-arm64"},{"os":"macos-13","name":"macos-x86_64"},{"os":"macos-14","name":"macos-arm64"}]}'
+          smoke='{"include":[{"os":"ubuntu-22.04","name":"linux-x86_64"}]}'
+          if [ -n "${{ inputs.release_tag }}" ]; then
+            echo "matrix=$full" >> "$GITHUB_OUTPUT"
+          else
+            echo "matrix=$smoke" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: targets
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.targets.outputs.matrix) }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.14"
+
+      - name: Install Qt system libraries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libgl1 libegl1 libglib2.0-0 libdbus-1-3 libfontconfig1 libxkbcommon0
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Build portable app
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Pin PyInstaller so a future major release cannot break builds.
+          pyi=(uv run --with "pyinstaller>=6,<7" pyinstaller)
+          common=(--noconfirm --windowed --name "$APP_NAME" --collect-submodules app)
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            "${pyi[@]}" "${common[@]}" app/gui/app.py
+            ( cd dist && zip -r -y "${APP_NAME}-${{ matrix.name }}.zip" "${APP_NAME}.app" )
+            echo "ASSET=dist/${APP_NAME}-${{ matrix.name }}.zip" >> "$GITHUB_ENV"
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            "${pyi[@]}" --onefile "${common[@]}" app/gui/app.py
+            mv "dist/${APP_NAME}.exe" "dist/${APP_NAME}-${{ matrix.name }}.exe"
+            echo "ASSET=dist/${APP_NAME}-${{ matrix.name }}.exe" >> "$GITHUB_ENV"
+          else
+            "${pyi[@]}" --onefile "${common[@]}" app/gui/app.py
+            mv "dist/${APP_NAME}" "dist/${APP_NAME}-${{ matrix.name }}"
+            echo "ASSET=dist/${APP_NAME}-${{ matrix.name }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Verify the artifact was produced
+        shell: bash
+        run: test -s "$ASSET"
+
+      - name: Smoke-launch the frozen app (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          set +e
+          timeout 20 "$ASSET"
+          code=$?
+          set -e
+          # 124 = still running after the timeout (started fine); 0 = clean exit.
+          if [ "$code" != "124" ] && [ "$code" != "0" ]; then
+            echo "Frozen app failed to start (exit $code)"
+            exit 1
+          fi
+          echo "Frozen app started cleanly."
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ env.ASSET }}
+
+      - name: Attach to release
+        if: inputs.release_tag != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ inputs.release_tag }}" "$ASSET" --clobber
