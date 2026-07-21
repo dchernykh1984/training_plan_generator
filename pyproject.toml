@@ -6,7 +6,7 @@ authors = [{ name = "Denis Chernykh", email = "education03@mail.ru" }]
 requires-python = ">=3.14,<4"
 dependencies = [
     "pykeepass>=4.1.1,<5",
-    "garminconnect>=0.2.19",
+    "garminconnect>=0.3.5",
     "pyside6>=6.7,<7",
 ]
 
