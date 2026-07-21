@@ -194,6 +194,19 @@ def _parse_ftp_watts(raw: object) -> int | None:
     return _require_positive_int(raw, "ftp_watts")
 
 
+def _looks_like_name_to_workout_mapping(data: dict) -> bool:
+    """True for ``{"some name": {..."steps": [...]}, ...}``.
+
+    Without this check such a file reaches ``parse_workout`` and fails with a
+    confusing complaint about a missing ``name``, pointing at the wrong thing.
+    """
+    return (
+        "steps" not in data
+        and bool(data)
+        and all(isinstance(v, dict) and "steps" in v for v in data.values())
+    )
+
+
 def parse_workout_file(data: object) -> list[WorkoutPlan]:
     """Parse a plan file containing one workout or a list of workouts.
 
@@ -206,6 +219,11 @@ def parse_workout_file(data: object) -> list[WorkoutPlan]:
     the file.
     """
     if isinstance(data, dict):
+        if _looks_like_name_to_workout_mapping(data):
+            raise ValueError(
+                "Plan file maps names to workouts; wrap the workouts in a JSON "
+                'array instead, e.g. [{"name": ...}, {"name": ...}]'
+            )
         return [parse_workout(data)]
     if not isinstance(data, list):
         raise ValueError(
