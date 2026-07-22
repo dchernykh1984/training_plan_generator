@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2](https://github.com/dchernykh1984/training_plan_generator/compare/v0.1.1...v0.1.2) (2026-07-22)
+
+
+### Bug Fixes
+
+* draw the app icon instead of a blank placeholder ([a61c08d](https://github.com/dchernykh1984/training_plan_generator/commit/a61c08d3962ae2b5e67d99c04d6d61aaa870791b))
+* embed the app icon in the macOS and Windows builds ([c875ee9](https://github.com/dchernykh1984/training_plan_generator/commit/c875ee926fa70bece18b1af703aafa4394719909))
+
 ## [0.1.1](https://github.com/dchernykh1984/training_plan_generator/compare/v0.1.0...v0.1.1) (2026-07-21)
 
 
