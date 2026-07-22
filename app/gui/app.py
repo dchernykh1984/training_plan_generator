@@ -8,8 +8,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtGui import QAction, QIcon, QPixmap
+from PySide6.QtCore import QRectF, Qt, QThread, Signal
+from PySide6.QtGui import (
+    QAction,
+    QBrush,
+    QColor,
+    QIcon,
+    QLinearGradient,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -932,9 +942,59 @@ class UploadTab(QWidget):
 # ---------------------------------------------------------------------------
 
 
-def make_app_icon(size: int = 64) -> QIcon:
+def make_app_icon(size: int = 256) -> QIcon:
+    """Render the app icon: a heartbeat traced inside a ring.
+
+    Deliberately a sibling of the trainings-sync icon - same rounded square,
+    same gradient treatment, same ring - so the two tools read as a pair. Here
+    the pulse is the subject rather than a detail, and the violet hue keeps the
+    two apart at a glance.
+    """
     pixmap = QPixmap(size, size)
     pixmap.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pixmap)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+    # Rounded-square background with a vertical gradient.
+    bg = QLinearGradient(0, 0, 0, size)
+    bg.setColorAt(0.0, QColor("#a78bfa"))
+    bg.setColorAt(1.0, QColor("#7c3aed"))
+    radius = size * 0.22
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QBrush(bg))
+    p.drawRoundedRect(QRectF(0, 0, size, size), radius, radius)
+
+    c = size / 2.0
+    r = size * 0.33
+    stroke = size * 0.055
+    white = QColor("#ffffff")
+
+    p.setPen(QPen(white, stroke))
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawEllipse(QRectF(c - r, c - r, 2 * r, 2 * r))
+
+    # Heartbeat. Peak and trough are spread apart horizontally so the strokes
+    # stay separate instead of merging into a blob, which keeps the beat
+    # readable down to 32 px.
+    pulse = QPen(white, stroke)
+    pulse.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pulse.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    p.setPen(pulse)
+    points = [
+        (-0.90, 0.0),
+        (-0.46, 0.0),
+        (-0.24, -0.62),
+        (0.10, 0.58),
+        (0.34, 0.0),
+        (0.90, 0.0),
+    ]
+    path = QPainterPath()
+    path.moveTo(c + r * points[0][0], c + r * points[0][1])
+    for dx, dy in points[1:]:
+        path.lineTo(c + r * dx, c + r * dy)
+    p.drawPath(path)
+
+    p.end()
     return QIcon(pixmap)
 
 
@@ -947,6 +1007,7 @@ class MainWindow(QMainWindow):
     def __init__(self, store: ConfigStore) -> None:
         super().__init__()
         self.setWindowTitle("Training Plan Generator")
+        self.setWindowIcon(make_app_icon())
         self.resize(800, 640)
 
         tabs = QTabWidget()
@@ -978,6 +1039,7 @@ class MainWindow(QMainWindow):
 
 def main() -> None:
     app = QApplication(sys.argv)
+    app.setWindowIcon(make_app_icon())
     store = ConfigStore()
     window = MainWindow(store)
     window.show()
