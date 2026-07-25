@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import override
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -846,6 +847,49 @@ def test_upload_tab_double_click_opens_edit(
 # ---------------------------------------------------------------------------
 # UploadTab - plan file and upload guards
 # ---------------------------------------------------------------------------
+
+
+def test_upload_tab_plan_path_field_fills_width_when_fields_stay_at_size_hint(
+    qtbot, store: ConfigStore
+) -> None:
+    """The path field must fill the row even under the macOS field policy.
+
+    The macOS style reports SH_FormLayoutFieldGrowthPolicy as
+    FieldsStayAtSizeHint, which pins QFormLayout fields to their size hint. The
+    plan-file row therefore must not depend on a form layout to stretch. Under
+    the offscreen platform the default style grows fields anyway, so the policy
+    is forced here to reproduce what macOS does.
+    """
+    from PySide6.QtWidgets import (
+        QApplication,
+        QFormLayout,
+        QProxyStyle,
+        QStyle,
+        QStyleFactory,
+    )
+
+    class _StayAtSizeHintStyle(QProxyStyle):
+        @override
+        def styleHint(self, hint, option=None, widget=None, return_data=None):
+            if hint == QStyle.StyleHint.SH_FormLayoutFieldGrowthPolicy:
+                return QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint.value
+            return super().styleHint(hint, option, widget, return_data)
+
+    app = QApplication.instance()
+    assert isinstance(app, QApplication)
+    original_style = app.style().objectName()
+    app.setStyle(_StayAtSizeHintStyle())
+    try:
+        tab = _upload_tab(qtbot, store)
+        tab.resize(1000, 600)
+        tab.show()
+        qtbot.waitExposed(tab)
+
+        group = tab._plan_path.parentWidget()
+        assert group is not None
+        assert tab._plan_path.width() > group.width() * 0.7
+    finally:
+        app.setStyle(QStyleFactory.create(original_style))
 
 
 def test_upload_tab_browse_plan_sets_and_persists_path(
