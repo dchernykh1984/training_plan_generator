@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.4](https://github.com/dchernykh1984/training_plan_generator/compare/v0.1.3...v0.1.4) (2026-07-25)
+
+
+### Bug Fixes
+
+* keep uv.lock in step with the released version ([4f3388e](https://github.com/dchernykh1984/training_plan_generator/commit/4f3388e3ccefbd94d1faa453cafc6f526c14015d))
+* let credential and target dialog fields fill their rows too ([f8d7f38](https://github.com/dchernykh1984/training_plan_generator/commit/f8d7f38ebe52437ab9bc373bb937e0f772d64992))
+* let the plan file path field fill the width of its row ([64f9ea5](https://github.com/dchernykh1984/training_plan_generator/commit/64f9ea58afc51362bf06aae1432f5efacdacd877))
+* serialise release-please runs so the uv.lock push cannot race ([65a831c](https://github.com/dchernykh1984/training_plan_generator/commit/65a831cc0bd4b5701df8d03030d2ed161f29ca6a))
+* stop the release lock step depending on skipped-step env evaluation ([d4f4b9f](https://github.com/dchernykh1984/training_plan_generator/commit/d4f4b9fc7e3093d762cfa6fb965d658a0920f8f9))
+
 ## [0.1.3](https://github.com/dchernykh1984/training_plan_generator/compare/v0.1.2...v0.1.3) (2026-07-25)
 
 
