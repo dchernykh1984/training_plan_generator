@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/dchernykh1984/training_plan_generator/compare/v0.1.2...v0.1.3) (2026-07-25)
+
+
+### Documentation
+
+* explain how to run the app from a release ([fd6e908](https://github.com/dchernykh1984/training_plan_generator/commit/fd6e90882a7cb5bda6204c81930d1a3b66509afb))
+
 ## [0.1.2](https://github.com/dchernykh1984/training_plan_generator/compare/v0.1.1...v0.1.2) (2026-07-22)
 
 
