@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from typing import override
 from unittest.mock import MagicMock, patch
@@ -30,6 +31,36 @@ from app.gui.config_store import ConfigStore, CredentialEntry, UploadTarget
 @pytest.fixture()
 def store(tmp_path: Path) -> ConfigStore:
     return ConfigStore(config_dir=tmp_path / "cfg")
+
+
+@pytest.fixture()
+def stay_at_size_hint_style(qapp) -> Iterator[None]:
+    """Force the field growth policy the macOS style reports.
+
+    macOS answers SH_FormLayoutFieldGrowthPolicy with FieldsStayAtSizeHint,
+    pinning form fields to their size hint. The offscreen platform used in CI
+    defaults to a style that grows fields, so layout regressions caused by that
+    policy stay invisible unless it is forced here.
+    """
+    from PySide6.QtWidgets import QFormLayout, QProxyStyle, QStyle, QStyleFactory
+
+    class _StayAtSizeHintStyle(QProxyStyle):
+        @override
+        def styleHint(self, hint, option=None, widget=None, return_data=None):
+            if hint == QStyle.StyleHint.SH_FormLayoutFieldGrowthPolicy:
+                return QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint.value
+            return super().styleHint(hint, option, widget, return_data)
+
+    original_name = qapp.style().objectName()
+    qapp.setStyle(_StayAtSizeHintStyle())
+    try:
+        yield
+    finally:
+        restored = QStyleFactory.create(original_name)
+        # Leaving the proxy style installed would silently change the layout of
+        # every later test in this worker.
+        assert restored is not None, f"cannot restore style {original_name!r}"
+        qapp.setStyle(restored)
 
 
 _VALID_PLAN = {
@@ -850,46 +881,44 @@ def test_upload_tab_double_click_opens_edit(
 
 
 def test_upload_tab_plan_path_field_fills_width_when_fields_stay_at_size_hint(
-    qtbot, store: ConfigStore
+    qtbot, store: ConfigStore, stay_at_size_hint_style: None
 ) -> None:
-    """The path field must fill the row even under the macOS field policy.
+    """The path field must fill the row even under the macOS field policy."""
+    tab = _upload_tab(qtbot, store)
+    tab.resize(1000, 600)
+    tab.show()
+    qtbot.waitExposed(tab)
 
-    The macOS style reports SH_FormLayoutFieldGrowthPolicy as
-    FieldsStayAtSizeHint, which pins QFormLayout fields to their size hint. The
-    plan-file row therefore must not depend on a form layout to stretch. Under
-    the offscreen platform the default style grows fields anyway, so the policy
-    is forced here to reproduce what macOS does.
-    """
-    from PySide6.QtWidgets import (
-        QApplication,
-        QFormLayout,
-        QProxyStyle,
-        QStyle,
-        QStyleFactory,
-    )
+    group = tab._plan_path.parentWidget()
+    assert group is not None
+    assert tab._plan_path.width() > group.width() * 0.7
 
-    class _StayAtSizeHintStyle(QProxyStyle):
-        @override
-        def styleHint(self, hint, option=None, widget=None, return_data=None):
-            if hint == QStyle.StyleHint.SH_FormLayoutFieldGrowthPolicy:
-                return QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint.value
-            return super().styleHint(hint, option, widget, return_data)
 
-    app = QApplication.instance()
-    assert isinstance(app, QApplication)
-    original_style = app.style().objectName()
-    app.setStyle(_StayAtSizeHintStyle())
-    try:
-        tab = _upload_tab(qtbot, store)
-        tab.resize(1000, 600)
-        tab.show()
-        qtbot.waitExposed(tab)
+def test_credential_dialog_fields_fill_width_when_fields_stay_at_size_hint(
+    qtbot, stay_at_size_hint_style: None
+) -> None:
+    """Same policy, same requirement: no dead space right of the dialog fields."""
+    dlg = CredentialDialog()
+    qtbot.addWidget(dlg)
+    dlg.resize(700, 400)
+    dlg.show()
+    qtbot.waitExposed(dlg)
 
-        group = tab._plan_path.parentWidget()
-        assert group is not None
-        assert tab._plan_path.width() > group.width() * 0.7
-    finally:
-        app.setStyle(QStyleFactory.create(original_style))
+    for field in (dlg._service, dlg._url, dlg._login, dlg._password):
+        assert field.width() > dlg.width() * 0.7
+
+
+def test_target_dialog_fields_fill_width_when_fields_stay_at_size_hint(
+    qtbot, stay_at_size_hint_style: None
+) -> None:
+    dlg = TargetDialog([_GARMIN_CRED])
+    qtbot.addWidget(dlg)
+    dlg.resize(700, 200)
+    dlg.show()
+    qtbot.waitExposed(dlg)
+
+    for field in (dlg._connector, dlg._credential):
+        assert field.width() > dlg.width() * 0.7
 
 
 def test_upload_tab_browse_plan_sets_and_persists_path(
