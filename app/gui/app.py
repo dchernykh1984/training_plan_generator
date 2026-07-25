@@ -710,16 +710,18 @@ class UploadTab(QWidget):
 
         root = QVBoxLayout(self)
 
-        # Plan file group
+        # Plan file group. Deliberately a QHBoxLayout and not a QFormLayout:
+        # the macOS style sets SH_FormLayoutFieldGrowthPolicy to
+        # FieldsStayAtSizeHint, which pins form fields to their size hint and
+        # leaves the path field narrow with empty space on both sides.
         plan_box = QGroupBox("Plan file")
-        plan_form = QFormLayout(plan_box)
-        plan_row = QHBoxLayout()
+        plan_row = QHBoxLayout(plan_box)
         self._plan_path = QLineEdit(self._config.last_plan_path)
         self._plan_path.setPlaceholderText("Path to workout JSON file")
         self._plan_browse = QPushButton("Browse...")
-        plan_row.addWidget(self._plan_path)
+        plan_row.addWidget(QLabel("File:"))
+        plan_row.addWidget(self._plan_path, 1)
         plan_row.addWidget(self._plan_browse)
-        plan_form.addRow("File:", plan_row)
         root.addWidget(plan_box)
 
         # Targets group - every workout in the file goes to every target here
