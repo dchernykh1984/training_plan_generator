@@ -310,6 +310,17 @@ def _keepass_paths(credentials: list[CredentialEntry]) -> list[str]:
     return paths
 
 
+def _fill_row_width(form: QFormLayout) -> None:
+    """Make form fields use the whole row width.
+
+    The macOS style reports SH_FormLayoutFieldGrowthPolicy as
+    FieldsStayAtSizeHint, which pins every field to its size hint and leaves
+    dead space to the right of it. Setting the policy explicitly keeps the
+    dialogs looking the same on every platform.
+    """
+    form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+
+
 def check_credential(
     entry: CredentialEntry, keepass_password: str = ""
 ) -> tuple[bool, str]:
@@ -364,6 +375,7 @@ class CredentialDialog(QDialog):
         self.setMinimumWidth(440)
 
         form = QFormLayout(self)
+        _fill_row_width(form)
 
         src_row = QHBoxLayout()
         self._manual_radio = QRadioButton("Enter manually")
@@ -646,6 +658,7 @@ class TargetDialog(QDialog):
         self.setMinimumWidth(400)
 
         form = QFormLayout(self)
+        _fill_row_width(form)
 
         self._connector = QComboBox()
         self._connector.addItems(list(CONNECTOR_TYPES))
