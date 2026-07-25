@@ -2,6 +2,75 @@
 
 CLI tool for uploading structured workout plans to training services.
 
+## Download a ready-made app
+
+Every release ships portable builds, so there is nothing to install and no
+Python, uv or git needed. Pick the file for your platform from the
+[latest release](https://github.com/dchernykh1984/training_plan_generator/releases/latest):
+
+| Platform | File |
+| --- | --- |
+| Windows (Intel/AMD) | `training-plan-generator-windows-x64.exe` |
+| Windows (ARM) | `training-plan-generator-windows-arm64.exe` |
+| macOS (Apple Silicon) | `training-plan-generator-macos-arm64.zip` |
+| Linux (Intel/AMD) | `training-plan-generator-linux-x86_64` |
+| Linux (ARM64) | `training-plan-generator-linux-aarch64` |
+
+The builds are not code-signed, so every system needs a one-off nudge before the
+first launch. Each step below is done once per download, not on every start.
+
+### macOS
+
+Only Apple Silicon (M1 and newer) is supported - there is no Intel build.
+
+Unpack the archive, then clear the quarantine flag that macOS puts on downloaded
+files:
+
+```bash
+xattr -dr com.apple.quarantine "/path/to/training-plan-generator.app"
+```
+
+After that the app opens with a normal double-click. Without it macOS refuses to
+start the app, because it is unsigned.
+
+The flag stays cleared. Copying or moving the app on the same Mac keeps it clear,
+so there is no need to repeat this for every copy. It only comes back when the app
+arrives from outside again: a fresh download, AirDrop, or unpacking a
+newly downloaded archive.
+
+Rather not use a terminal? Ctrl-click the app, choose **Open**, then **Open**
+again in the dialog. macOS 15 Sequoia dropped that shortcut - there, go to System
+Settings -> Privacy & Security, scroll down to the notice about the blocked app
+and press **Open Anyway**.
+
+### Windows
+
+Run the `.exe` directly. SmartScreen warns that the publisher is unknown: choose
+**More info**, then **Run anyway**.
+
+### Linux
+
+Make the file executable and run it:
+
+```bash
+chmod +x training-plan-generator-linux-x86_64
+./training-plan-generator-linux-x86_64
+```
+
+This is a GUI application, so it needs a graphical session. If it fails to start
+with an error about missing Qt libraries, install them:
+
+```bash
+sudo apt-get install -y libgl1 libegl1 libglib2.0-0 libdbus-1-3 \
+  libfontconfig1 libxkbcommon0
+```
+
+### Where to keep it
+
+Settings are stored under your home directory in `~/.config/training-plan-generator/`, so the program
+itself can live anywhere - including `/Applications` on macOS.
+
+
 ## Setup
 
 ### 1. Download the project
