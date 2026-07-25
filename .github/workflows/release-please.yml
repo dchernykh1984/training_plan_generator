@@ -14,6 +14,15 @@ permissions:
   contents: write
   pull-requests: write
 
+# The uv.lock step below clones the release branch, rewrites the lock and pushes
+# it back. Two runs doing that at once race: one force-pushes a fresh version
+# bump while the other is mid-flight, and the loser's push is rejected as a
+# non-fast-forward. Serialise runs instead of cancelling them - cancelling could
+# abandon a release halfway through.
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release-please:
     if: github.event_name == 'push'
