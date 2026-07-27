@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/dchernykh1984/training_plan_generator/compare/v0.1.5...v0.1.6) (2026-07-27)
+
+
+### Bug Fixes
+
+* keep the macos bundle file name free of spaces ([91660bd](https://github.com/dchernykh1984/training_plan_generator/commit/91660bdcf6fb72c536cb4f736141b14fda60c1d6))
+
 ## [0.1.5](https://github.com/dchernykh1984/training_plan_generator/compare/v0.1.4...v0.1.5) (2026-07-27)
 
 
