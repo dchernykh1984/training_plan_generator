@@ -12,6 +12,8 @@ import pytest
 from PySide6.QtWidgets import QDialog, QLabel, QLineEdit, QTabWidget
 
 from app.gui.app import (
+    APP_DESKTOP_NAME,
+    APP_DISPLAY_NAME,
     CredentialDialog,
     CredentialsTab,
     MainWindow,
@@ -23,6 +25,7 @@ from app.gui.app import (
     _keepass_paths,
     _keepass_provider,
     check_credential,
+    configure_app_identity,
     make_app_icon,
 )
 from app.gui.config_store import ConfigStore, CredentialEntry, UploadTarget
@@ -1238,6 +1241,36 @@ def test_main_window_title(qtbot, store: ConfigStore) -> None:
     win = MainWindow(store)
     qtbot.addWidget(win)
     assert "Training Plan Generator" in win.windowTitle()
+
+
+def test_main_window_title_is_the_display_name(qtbot, store: ConfigStore) -> None:
+    win = MainWindow(store)
+    qtbot.addWidget(win)
+    assert win.windowTitle() == APP_DISPLAY_NAME
+
+
+def test_configure_app_identity_names_the_app_for_the_shell(qapp) -> None:
+    before = (
+        qapp.applicationName(),
+        qapp.applicationDisplayName(),
+        qapp.desktopFileName(),
+    )
+    try:
+        configure_app_identity(qapp)
+        assert qapp.applicationName() == APP_DISPLAY_NAME
+        assert qapp.applicationDisplayName() == APP_DISPLAY_NAME
+        assert qapp.desktopFileName() == APP_DESKTOP_NAME
+    finally:
+        qapp.setApplicationName(before[0])
+        qapp.setApplicationDisplayName(before[1])
+        qapp.setDesktopFileName(before[2])
+
+
+def test_display_name_is_not_the_artifact_name() -> None:
+    # The regression this guards: the shell name fell back to the packaged
+    # file name, so the dock read "training-plan-generator".
+    assert APP_DISPLAY_NAME != APP_DESKTOP_NAME
+    assert "-" not in APP_DISPLAY_NAME
 
 
 def test_main_window_refreshes_targets_when_returning_to_upload_tab(
