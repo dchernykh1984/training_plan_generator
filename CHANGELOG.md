@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.5](https://github.com/dchernykh1984/training_plan_generator/compare/v0.1.4...v0.1.5) (2026-07-27)
+
+
+### Bug Fixes
+
+* give the macos bundle a proper identifier and version ([b5c80f4](https://github.com/dchernykh1984/training_plan_generator/commit/b5c80f45c0e38d9939b678265998ef205bea381d))
+* show the full app name in the dock and task switcher ([b9621ed](https://github.com/dchernykh1984/training_plan_generator/commit/b9621ed11904283397b2232cfcf142fa78adcf70))
+
 ## [0.1.4](https://github.com/dchernykh1984/training_plan_generator/compare/v0.1.3...v0.1.4) (2026-07-25)
 
 
