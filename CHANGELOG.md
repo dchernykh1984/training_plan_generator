@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/dchernykh1984/training_plan_generator/compare/v0.1.6...v0.1.7) (2026-11-07)
+
+
+### Bug Fixes
+
+* **ci:** restore the macos release asset, lost to a retired runner label ([46cfa69](https://github.com/dchernykh1984/training_plan_generator/commit/46cfa693781c24d4305cbfb3fe05666b6ce0cd6b))
+
 ## [0.1.6](https://github.com/dchernykh1984/training_plan_generator/compare/v0.1.5...v0.1.6) (2026-07-27)
 
 
