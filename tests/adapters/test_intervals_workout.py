@@ -97,6 +97,25 @@ def test_plan_description_is_collapsed_onto_one_line():
     )
 
 
+@pytest.mark.parametrize(
+    ("description", "text"),
+    [
+        (
+            "- keep cadence high\n- 5m easy after",
+            r"\- keep cadence high - 5m easy after",
+        ),
+        ("1. warm up well", r"\1. warm up well"),
+        ("3.5h endurance", "3.5h endurance"),
+        ("105-115% FTP", "105-115% FTP"),
+    ],
+)
+def test_plan_description_never_starts_a_step_list(description, text):
+    result = _payload(
+        [{"type": "warmup", "duration_seconds": 60}], description=description
+    )
+    assert result.payload["description"] == f"{text}\n\n- 1m intensity=warmup"
+
+
 def test_repeats_are_separated_from_neighbouring_steps():
     effort = {"type": "interval", "duration_seconds": 30}
     result = _payload(

@@ -7,6 +7,8 @@ a ``3x`` line sitting directly on top of its step list.
 
 from __future__ import annotations
 
+import re
+
 from app.adapters.base import AdapterResult, PayloadAdapter
 from app.models.workout import RepeatStep, WorkoutPlan, WorkoutStep
 
@@ -80,9 +82,11 @@ def _lines(
 
 
 def _description(plan: WorkoutPlan, warnings: list[str]) -> str:
-    # The plan text goes on one line, so none of it can parse as a step, and
-    # blank lines keep each "Nx" header off its neighbours' step lists.
-    blocks = [" ".join(plan.description.split())]
+    # The plan text goes on one line with any leading list marker escaped, so
+    # none of it can parse as a step; blank lines keep each "Nx" header off its
+    # neighbours' step lists.
+    text = " ".join(plan.description.split())
+    blocks = [re.sub(r"^([-+*]|\d{1,9}[.)](?=\s))", r"\\\1", text)]
     singles: list[str] = []
     for step in plan.steps:
         if isinstance(step, RepeatStep):
