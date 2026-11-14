@@ -9,7 +9,7 @@ from app.credentials.base import Credentials
 
 # Athlete "0" is whoever owns the API key.
 _API_URL = "https://intervals.icu/api/v1/athlete/0"
-# Library workouts must live in a folder; uploads go to this one.
+# The API creates library workouts in a folder or plan; uploads go to this one.
 _FOLDER_NAME = "Training Plan Generator"
 _TIMEOUT_SECONDS = 30
 
