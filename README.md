@@ -241,7 +241,8 @@ The KeePass master password is read from `--keepass-password`, the `KEEPASS_PASS
 environment variable, or prompted interactively.
 
 To upload to [intervals.icu](https://intervals.icu) instead, pass `--connector intervals`
-(see [intervals.icu notes](#intervalsicu-notes) for the credential entry):
+(the credential entry is described in the intervals.icu notes under
+[JSON plan format](#json-plan-format)):
 
 ```bash
 uv run training-plan-generator upload \
@@ -321,7 +322,7 @@ See [`templates/workout_garmin.json`](templates/workout_garmin.json) for a ready
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `type` | string | - | `warmup`, `cooldown`, `interval`, `rest`, or `repeat` |
-| `name` | string | `""` | Optional step label; appears as `stepDescription` in Garmin |
+| `name` | string | `""` | Optional step label; appears as `stepDescription` in Garmin and as the step text in intervals.icu |
 | `duration_type` | string | `"time"` | `time`, `distance`, or `open` |
 | `duration_seconds` | integer | - | Seconds when `time`; **meters** when `distance`; absent/null when `open` |
 
@@ -353,14 +354,14 @@ Valid value ranges:
 - If the total expanded step count exceeds 50, a warning is written to the run log
   and the upload is still attempted.
 
-<a id="intervalsicu-notes"></a>
 **intervals.icu notes**
 
 - Authentication uses a personal API key: open intervals.icu **Settings**, scroll to
-  **Developer Settings** and generate one. In the credential entry the API key goes
-  in `password` (the "Password / Token" field in the GUI); `login` is only a label
-  for picking the account, e.g. your e-mail. The service/Title is `intervals` and
-  the URL is `https://intervals.icu`.
+  **Developer Settings** and generate one. Store the key as the credential's
+  password ("Password / Token" in the GUI); the login is only a label for picking
+  the account, e.g. your e-mail. As with Garmin, the CLI looks the entry up by
+  service (JSON) or Title (KeePass) `intervals` and a URL containing `intervals`,
+  such as `https://intervals.icu`.
 - Workouts are added to the workout library of the key's owner, in a folder named
   **Training Plan Generator** that is created on the first upload.
 - Each workout is sent in the intervals.icu workout text format, so it stays
