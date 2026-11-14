@@ -5,12 +5,12 @@ The tool matches entries by **Title** and **URL**, so these two fields are criti
 
 ## Required fields
 
-| KeePass field | Value for Garmin Connect |
-|---|---|
-| Title | `garmin` |
-| URL | `https://connect.garmin.com` (any value containing this substring) |
-| Username | your Garmin Connect e-mail |
-| Password | your Garmin Connect password |
+| KeePass field | Value for Garmin Connect | Value for intervals.icu |
+|---|---|---|
+| Title | `garmin` | `intervals` |
+| URL | `https://connect.garmin.com` (any value containing this substring) | `https://intervals.icu` |
+| Username | your Garmin Connect e-mail | any label, e.g. your e-mail |
+| Password | your Garmin Connect password | your API key (intervals.icu Settings -> Developer Settings) |
 
 The **Title** must match the connector name passed to `--connector`.
 The **URL** is matched as a substring, so `https://connect.garmin.com` and

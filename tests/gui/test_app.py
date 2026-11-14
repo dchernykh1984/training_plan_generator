@@ -472,11 +472,12 @@ def test_credential_dialog_marks_url_informational_in_keepass_mode(qtbot) -> Non
     assert "informational" in dlg._url_label.text()
 
 
-def test_credential_dialog_url_dropdown_has_garmin_preset(qtbot) -> None:
+def test_credential_dialog_url_dropdown_has_service_presets(qtbot) -> None:
     dlg = CredentialDialog()
     qtbot.addWidget(dlg)
     urls = [dlg._url.itemText(i) for i in range(dlg._url.count())]
     assert "https://connect.garmin.com" in urls
+    assert "https://intervals.icu" in urls
     assert dlg._url.isEditable()
 
 

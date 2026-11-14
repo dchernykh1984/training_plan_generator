@@ -26,8 +26,8 @@ def store(tmp_path: Path) -> ConfigStore:
 # ---------------------------------------------------------------------------
 
 
-def test_connector_types_contains_garmin() -> None:
-    assert "garmin" in CONNECTOR_TYPES
+def test_connector_types_contains_garmin_and_intervals() -> None:
+    assert {"garmin", "intervals"} <= set(CONNECTOR_TYPES)
 
 
 # ---------------------------------------------------------------------------

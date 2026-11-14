@@ -2,8 +2,10 @@ import pytest
 
 from app.adapters.base import AdapterResult, PayloadAdapter
 from app.adapters.garmin_workout import GarminWorkoutAdapter
+from app.adapters.intervals_workout import IntervalsWorkoutAdapter
 from app.connectors.base import WorkoutConnector
 from app.connectors.garmin import GarminConnector
+from app.connectors.intervals import IntervalsConnector
 from app.connectors.registry import (
     CONNECTORS,
     PAYLOAD_ADAPTERS,
@@ -21,6 +23,11 @@ def test_get_garmin_connector():
 def test_get_garmin_adapter():
     adapter = get_adapter("garmin")
     assert isinstance(adapter, GarminWorkoutAdapter)
+
+
+def test_get_intervals_connector_and_adapter():
+    assert isinstance(get_connector("intervals"), IntervalsConnector)
+    assert isinstance(get_adapter("intervals"), IntervalsWorkoutAdapter)
 
 
 def test_get_unknown_connector_raises():

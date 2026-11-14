@@ -113,6 +113,45 @@ def test_upload_valid_plan_calls_connector_and_caches(tmp_path):
     assert any(".garmin.json" in f.name for f in cache.iterdir())
 
 
+def test_upload_to_intervals_caches_its_payload(tmp_path):
+    creds = [
+        {
+            "service": "intervals",
+            "url": "https://intervals.icu",
+            "login": "me",
+            "password": "key",
+        }
+    ]
+    creds_file = tmp_path / "creds.json"
+    creds_file.write_text(json.dumps(creds))
+    args = _build_parser().parse_args(
+        [
+            "upload",
+            "--plan",
+            str(_plan_file(tmp_path)),
+            "--connector",
+            "intervals",
+            "--credentials-provider",
+            "json",
+            "--creds-json",
+            str(creds_file),
+            "--cache-dir",
+            str(tmp_path / "cache"),
+        ]
+    )
+
+    mock_connector = MagicMock()
+    mock_connector.upload.return_value = "42"
+    with patch("app.cli.get_connector", return_value=mock_connector):
+        assert _cmd_upload(args) == 0
+
+    payload = mock_connector.upload.call_args.args[0]
+    assert payload["type"] == "Ride"
+    assert payload["description"].startswith("- 10m 130-170w")
+    files = {f.name for f in (tmp_path / "cache" / "workouts").iterdir()}
+    assert "3x8_cycling_intervals.intervals.json" in files
+
+
 def test_upload_caches_source_and_payload(tmp_path):
     creds_file = _write_garmin_creds(tmp_path)
     args = _upload_args(tmp_path, creds_json=str(creds_file))

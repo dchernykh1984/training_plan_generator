@@ -171,7 +171,7 @@ Ready-to-edit starting points in the `templates/` folder:
 | File | Description |
 |---|---|
 | [`templates/workout_garmin.json`](templates/workout_garmin.json) | Workout plan template (warmup, repeat block, cooldown; all target types) |
-| [`templates/credentials.json`](templates/credentials.json) | JSON credentials file template for Garmin Connect |
+| [`templates/credentials.json`](templates/credentials.json) | JSON credentials file template for Garmin Connect and intervals.icu |
 | [`templates/keepass_entry.md`](templates/keepass_entry.md) | Guide for setting up the KeePass entry (Title, URL, Username, Password) |
 
 ### Graphical interface
@@ -240,6 +240,17 @@ uv run training-plan-generator upload \
 The KeePass master password is read from `--keepass-password`, the `KEEPASS_PASSWORD`
 environment variable, or prompted interactively.
 
+To upload to [intervals.icu](https://intervals.icu) instead, pass `--connector intervals`
+(see [intervals.icu notes](#intervalsicu-notes) for the credential entry):
+
+```bash
+uv run training-plan-generator upload \
+  --plan templates/workout_garmin.json \
+  --connector intervals \
+  --credentials-provider json \
+  --creds-json templates/credentials.json
+```
+
 Use `--login` to select a specific account when the credentials store has more than one
 entry for the same service:
 
@@ -301,7 +312,7 @@ See [`templates/workout_garmin.json`](templates/workout_garmin.json) for a ready
 |---|---|---|---|
 | `name` | string | yes | Workout name |
 | `sport` | string | yes | `cycling`, `running`, or `swimming` |
-| `description` | string | no | Free-text description; surfaces in Garmin payload |
+| `description` | string | no | Free-text description; surfaces in the Garmin and intervals.icu payloads |
 | `ftp_watts` | integer | no | Athlete's FTP in watts (positive) |
 | `estimated_tss` | number | no | Estimated Training Stress Score (&gt;= 0) |
 
@@ -342,6 +353,25 @@ Valid value ranges:
 - If the total expanded step count exceeds 50, a warning is written to the run log
   and the upload is still attempted.
 
+<a id="intervalsicu-notes"></a>
+**intervals.icu notes**
+
+- Authentication uses a personal API key: open intervals.icu **Settings**, scroll to
+  **Developer Settings** and generate one. In the credential entry the API key goes
+  in `password` (the "Password / Token" field in the GUI); `login` is only a label
+  for picking the account, e.g. your e-mail. The service/Title is `intervals` and
+  the URL is `https://intervals.icu`.
+- Workouts are added to the workout library of the key's owner, in a folder named
+  **Training Plan Generator** that is created on the first upload.
+- Each workout is sent in the intervals.icu workout text format, so it stays
+  editable in the workout builder. Power, cadence, time, distance, repeats and step
+  names map one to one; the step type becomes the step intensity.
+- The workout text has no absolute heart-rate targets (only % of max or threshold
+  HR), so a `heart_rate` target is kept in the step text, e.g.
+  `Active Recovery HR 110-130 bpm`, and a warning is written to the run log.
+- intervals.icu needs a duration for every step: an `open` step is planned as 5
+  minutes and marked "press lap", so the device waits for the lap button.
+
 ### Adapter warning/fallback contract
 
 Adapters return warnings in `AdapterResult.warnings` rather than raising exceptions
@@ -366,6 +396,7 @@ Uploaded workouts and the execution log are stored under the cache directory
 logs/
   workouts/
     <slug>.garmin.json          Garmin payload
+    <slug>.intervals.json       intervals.icu payload
     <slug>.source.json          original source plan JSON
   training_plan_generator.log   append log across all runs
 ```
