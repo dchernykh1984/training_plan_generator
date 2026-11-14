@@ -48,8 +48,9 @@ class IntervalsConnector(WorkoutConnector):
 
     def login(self, creds: Credentials) -> None:
         session = requests.Session()
-        # Personal API key auth: the username is the literal "API_KEY".
-        session.auth = ("API_KEY", creds.password)
+        # Personal API key auth: the username is the literal "API_KEY". A key
+        # never has whitespace, so a pasted trailing space would only cause a 401.
+        session.auth = ("API_KEY", creds.password.strip())
         # Cloudflare in front of intervals.icu challenges some default client UAs.
         session.headers["User-Agent"] = "training-plan-generator"
         try:

@@ -17,19 +17,19 @@ def _response(json_body=None, status=200, text=""):
     return response
 
 
-def _logged_in(*responses):
+def _logged_in(*responses, key=_KEY):
     """Log in against a fake Session that answers with ``responses`` in order."""
     session = MagicMock()
     session.headers = {}
     session.request.side_effect = list(responses)
     with patch("app.connectors.intervals.requests.Session", return_value=session):
         connector = IntervalsConnector()
-        connector.login(Credentials(login="me@x", password=_KEY))
+        connector.login(Credentials(login="me@x", password=key))
     return connector, session
 
 
 def test_login_authenticates_with_the_api_key():
-    _, session = _logged_in(_response([_OUR_FOLDER]))
+    _, session = _logged_in(_response([_OUR_FOLDER]), key=f" {_KEY}\n")
     assert session.auth == ("API_KEY", _KEY)
     assert session.headers["User-Agent"] == "training-plan-generator"
     session.request.assert_called_once_with(
