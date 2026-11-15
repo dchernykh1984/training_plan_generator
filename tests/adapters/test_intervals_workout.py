@@ -86,6 +86,20 @@ def test_name_is_collapsed_onto_the_step_line():
     assert result.payload["description"] == "- Spin easy<!> 1m intensity=rest"
 
 
+@pytest.mark.parametrize(
+    ("name", "cue"),
+    [
+        ("1. Warm-up", "1.Warm-up"),
+        ("2) Main set", "2)Main set"),
+        ("- easy spin", "-easy spin"),
+        ("1.5km tempo", "1.5km tempo"),
+    ],
+)
+def test_list_like_step_name_stays_in_its_step(name, cue):
+    result = _payload([{"type": "warmup", "name": name, "duration_seconds": 60}])
+    assert result.payload["description"] == f"- {cue}<!> 1m intensity=warmup"
+
+
 def test_plan_description_is_collapsed_onto_one_line():
     # A "- 2m easy" line of its own would otherwise parse as an extra step.
     result = _payload(

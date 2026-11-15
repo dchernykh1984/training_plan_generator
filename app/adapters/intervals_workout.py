@@ -39,7 +39,11 @@ def _range(low: float, high: float) -> str:
 
 
 def _step_line(step: WorkoutStep, warnings: list[str]) -> str:
-    cue = [" ".join(step.name.split())] if step.name else []
+    # A name that starts like a list item ("1. Warm-up") would nest a list in
+    # the step, which intervals.icu then drops. Without the space after the
+    # marker it stays text; a backslash escape would split the step text instead.
+    name = re.sub(r"^([-+*]|\d{1,9}[.)]) ", r"\1", " ".join(step.name.split()))
+    cue = [name] if name else []
     if step.duration_seconds is None:
         spec = [_duration(_OPEN_STEP_SECONDS), "press", "lap"]
         warnings.append(
