@@ -805,6 +805,15 @@ def test_upload_tab_starts_with_no_targets(qtbot, store: ConfigStore) -> None:
     assert _upload_tab(qtbot, store)._table.rowCount() == 0
 
 
+def test_upload_tab_second_column_names_both_kinds_of_target(
+    qtbot, store: ConfigStore
+) -> None:
+    tab = _upload_tab(qtbot, store)
+    header = tab._table.horizontalHeaderItem(1)
+    assert header is not None
+    assert header.text() == "Credential / Folder"
+
+
 def test_upload_tab_loads_persisted_targets(qtbot, store: ConfigStore) -> None:
     store.save_credentials([_GARMIN_CRED])
     store.save_targets([_GARMIN_TARGET])

@@ -837,7 +837,7 @@ class UploadTab(QWidget):
         targets_layout = QVBoxLayout(targets_box)
 
         self._table = QTableWidget(0, 2)
-        self._table.setHorizontalHeaderLabels(["Connector", "Credential"])
+        self._table.setHorizontalHeaderLabels(["Connector", "Credential / Folder"])
         self._table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch
         )
