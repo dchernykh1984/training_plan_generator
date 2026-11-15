@@ -29,4 +29,12 @@ class GarminConnector(WorkoutConnector):
             raise RuntimeError("Not logged in; call login() first")
         result = self._client.upload_workout(payload)
         workout_id = result.get("workoutId") or result.get("id") or str(result)
+        if day is not None:
+            try:
+                self._client.schedule_workout(workout_id, day.isoformat())
+            except Exception as e:
+                raise RuntimeError(
+                    f"Garmin workout {workout_id} was uploaded but not scheduled "
+                    f"for {day}: {e}"
+                ) from e
         return str(workout_id)
