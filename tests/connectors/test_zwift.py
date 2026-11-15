@@ -6,8 +6,12 @@ from app.connectors.zwift import ZwiftConnector
 
 @pytest.fixture
 def workouts_root(tmp_path, monkeypatch):
-    monkeypatch.setattr(zwift, "_WORKOUTS_ROOT", tmp_path)
-    return tmp_path
+    home = tmp_path / "home"
+    root = home / "Documents" / "Zwift" / "Workouts"
+    root.mkdir(parents=True)
+    monkeypatch.setattr(zwift.Path, "home", lambda: home)
+    monkeypatch.delenv("OneDrive", raising=False)
+    return root
 
 
 def test_finds_the_only_zwift_account_folder(workouts_root):
@@ -28,6 +32,16 @@ def test_asks_to_choose_between_several_accounts(workouts_root):
     (workouts_root / "222").mkdir()
     with pytest.raises(RuntimeError, match=r"Several Zwift accounts .*\(111, 222\)"):
         ZwiftConnector().login()
+
+
+def test_finds_the_zwift_folder_in_onedrive_documents(workouts_root, monkeypatch):
+    onedrive = workouts_root.parents[3] / "OneDrive"
+    account = onedrive / "Documents" / "Zwift" / "Workouts" / "123456"
+    account.mkdir(parents=True)
+    monkeypatch.setenv("OneDrive", str(onedrive))
+    connector = ZwiftConnector()
+    connector.login()
+    assert connector.folder == account
 
 
 def test_a_chosen_folder_wins(workouts_root, tmp_path):
