@@ -8,7 +8,13 @@ _DEFAULT_CONFIG_DIR = Path.home() / ".config" / "training-plan-generator"
 
 # Single source of truth for supported connectors in the GUI.
 # Extend here and in app.py to add new connectors.
-CONNECTOR_TYPES: tuple[str, ...] = ("garmin", "intervals", "zwift", "erg-file")
+CONNECTOR_TYPES: tuple[str, ...] = (
+    "garmin",
+    "intervals",
+    "zwift",
+    "erg-file",
+    "fit-file",
+)
 
 
 # ---------------------------------------------------------------------------
