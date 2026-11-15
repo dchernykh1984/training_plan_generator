@@ -554,7 +554,9 @@ def test_upload_to_a_missing_folder_fails(tmp_path, capsys):
         tmp_path, connector="zwift", provider=None, output_dir=str(tmp_path / "no")
     )
     assert _cmd_upload(args) == 1
-    assert "Folder not found" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "Folder not found" in err
+    assert "--output-dir" not in err  # the folder was chosen; it is just missing
 
 
 def test_output_dir_is_only_for_file_connectors(tmp_path, capsys):
@@ -590,7 +592,10 @@ def test_a_plan_the_connector_cannot_take_fails_alone(tmp_path, capsys):
 def test_erg_files_need_an_output_dir(tmp_path, capsys):
     args = _upload_args(tmp_path, connector="erg-file", provider=None)
     assert _cmd_upload(args) == 1
-    assert "Choose the folder to write .erg files to" in capsys.readouterr().err
+    assert (
+        "Error: Choose the folder to write .erg files to (pass --output-dir PATH)"
+        in capsys.readouterr().err
+    )
 
 
 def test_upload_writes_an_erg_file(tmp_path):

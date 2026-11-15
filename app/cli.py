@@ -136,7 +136,8 @@ def _open_folder(
     try:
         connector.login()
     except RuntimeError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        hint = "" if args.output_dir else " (pass --output-dir PATH)"
+        print(f"Error: {e}{hint}", file=sys.stderr)
         log.error(f"folder error: {e}")
         return False
     print(f"Writing {connector.extension} files to {connector.folder}")
