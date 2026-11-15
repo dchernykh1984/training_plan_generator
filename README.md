@@ -57,6 +57,8 @@ chmod +x training-plan-generator-linux-x86_64
 ./training-plan-generator-linux-x86_64
 ```
 
+On ARM64 the file is `training-plan-generator-linux-aarch64` instead.
+
 This is a GUI application, so it needs a graphical session. If it fails to start
 with an error about missing Qt libraries, install them:
 
