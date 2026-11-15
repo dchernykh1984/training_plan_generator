@@ -60,13 +60,13 @@ class IntervalsConnector(WorkoutConnector):
         session.headers["User-Agent"] = "training-plan-generator"
         try:
             # Reading the folders checks the key without changing anything.
-            folders = _call(session, "GET", "folders")
+            folder_id = _find_folder_id(_call(session, "GET", "folders"))
         except Exception as e:
             raise RuntimeError(
                 f"intervals.icu login failed for {creds.login!r}: {e}"
             ) from e
         self._session = session
-        self._folder_id = _find_folder_id(folders)
+        self._folder_id = folder_id
 
     def upload(self, payload: dict, day: datetime.date | None = None) -> str:
         if self._session is None:

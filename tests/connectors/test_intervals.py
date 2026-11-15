@@ -113,6 +113,11 @@ def test_rejected_api_key_fails_login_without_leaking_it():
     assert _KEY not in str(exc_info.value)
 
 
+def test_unexpected_folders_response_fails_login():
+    with pytest.raises(RuntimeError, match="login failed"):
+        _logged_in(_response({"error": "not a list"}))
+
+
 def test_network_error_fails_login():
     with pytest.raises(RuntimeError, match="login failed"):
         _logged_in(requests.ConnectionError("unreachable"))
