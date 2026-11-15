@@ -23,11 +23,11 @@ first launch. Each step below is done once per download, not on every start.
 
 Only Apple Silicon (M1 and newer) is supported - there is no Intel build.
 
-Unpack the archive, then clear the quarantine flag that macOS puts on downloaded
-files:
+Unpack the archive, which holds `TrainingPlanGenerator.app`, then clear the
+quarantine flag that macOS puts on downloaded files:
 
 ```bash
-xattr -dr com.apple.quarantine "/path/to/training-plan-generator.app"
+xattr -dr com.apple.quarantine "/path/to/TrainingPlanGenerator.app"
 ```
 
 After that the app opens with a normal double-click. Without it macOS refuses to
