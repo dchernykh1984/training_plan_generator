@@ -12,8 +12,10 @@ PySide6 GUI (`app/gui/app.py`, `training-plan-generator-gui`). Plan shapes live 
 - Never commit to `main`. Branch off `origin/main`, one logical change per commit.
 - Commit messages: one-line Conventional Commits, no body, no `Co-Authored-By` trailer
   and no co-author line. `cz check --rev-range origin/main..HEAD` runs on every PR, and
-  release-please builds `CHANGELOG.md` from these subjects, so the type matters (`fix`
-  and `feat` are released; `chore`/`docs`/`test`/`style`/`refactor` are not).
+  release-please builds `CHANGELOG.md` from these subjects, so the type matters: `feat`,
+  `fix`, `perf` and `docs` each cut a release and show in the changelog (a `docs`-only
+  merge still bumps the patch version); `chore`/`ci`/`build`/`test`/`style`/`refactor`
+  do not.
 - ASCII only in tracked files (`uv.lock` and `CHANGELOG.md` are exempt). A pre-commit
   hook and the `.codex` PostToolUse guard both enforce it. Chat in any language; files
   stay ASCII.

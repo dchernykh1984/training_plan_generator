@@ -15,8 +15,9 @@ description: Branch, commit, open a pull request, and drive CI to green in this 
 
 - One line, Conventional Commits: `git commit -m "type(scope): summary"`. No body and no
   `Co-Authored-By` trailer. `cz check --rev-range origin/main..HEAD` runs in CI, and
-  release-please builds CHANGELOG from these subjects, so the type matters (`feat`/`fix`
-  are released; `chore`/`docs`/`test`/`style`/`refactor` are not).
+  release-please builds CHANGELOG from these subjects, so the type matters: `feat`, `fix`,
+  `perf` and `docs` each cut a release (a `docs`-only merge still bumps the patch
+  version); `chore`/`ci`/`build`/`test`/`style`/`refactor` do not.
 
 ## Before pushing
 
