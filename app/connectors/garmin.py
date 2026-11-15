@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import datetime
+
 import garminconnect
 
 from app.connectors.base import WorkoutConnector
@@ -22,7 +24,7 @@ class GarminConnector(WorkoutConnector):
         except Exception as e:
             raise RuntimeError(f"Garmin login failed for {creds.login!r}: {e}") from e
 
-    def upload(self, payload: dict) -> str:
+    def upload(self, payload: dict, day: datetime.date | None = None) -> str:
         if self._client is None:
             raise RuntimeError("Not logged in; call login() first")
         result = self._client.upload_workout(payload)

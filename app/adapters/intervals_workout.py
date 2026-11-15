@@ -121,5 +121,7 @@ class IntervalsWorkoutAdapter(PayloadAdapter):
             "name": plan.name,
             "type": _SPORT_TYPE[plan.sport],
             "description": _description(plan, warnings),
+            # Zwift only takes workouts that intervals.icu has marked indoor.
+            "indoor": plan.indoor,
         }
         return AdapterResult(payload=payload, warnings=warnings)

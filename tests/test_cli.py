@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import json
 from unittest.mock import MagicMock, patch
 
@@ -503,3 +504,17 @@ def test_upload_empty_list_returns_error(tmp_path):
     plan_file.write_text("[]")
     args = _upload_args(tmp_path, plan=plan_file, creds_json=str(creds_file))
     assert _cmd_upload(args) == 1
+
+
+def test_upload_passes_the_plan_date_to_the_connector(tmp_path, capsys):
+    creds_file = _write_garmin_creds(tmp_path)
+    plan = _plan_file(tmp_path, {**_VALID_PLAN, "date": "2026-11-20"})
+    args = _upload_args(tmp_path, plan=plan, creds_json=str(creds_file))
+    mock_connector = MagicMock()
+    mock_connector.upload.return_value = "w-1"
+
+    with patch("app.cli.get_connector", return_value=mock_connector):
+        assert _cmd_upload(args) == 0
+
+    assert mock_connector.upload.call_args.args[1] == datetime.date(2026, 11, 20)
+    assert '3x8 Cycling Intervals" for 2026-11-20...' in capsys.readouterr().out

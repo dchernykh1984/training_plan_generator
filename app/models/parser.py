@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import datetime
 import math
+import re
 
 from app.models.workout import (
     SUPPORTED_DURATION_TYPES,
@@ -194,6 +196,23 @@ def _parse_ftp_watts(raw: object) -> int | None:
     return _require_positive_int(raw, "ftp_watts")
 
 
+def _parse_date(raw: object) -> datetime.date | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+        raise ValueError(f"Plan 'date' must be a YYYY-MM-DD string, got {raw!r}")
+    try:
+        return datetime.date.fromisoformat(raw)
+    except ValueError as err:
+        raise ValueError(f"Plan 'date' is not a calendar day: {raw!r}") from err
+
+
+def _parse_indoor(raw: object) -> bool:
+    if not isinstance(raw, bool):
+        raise ValueError(f"Plan 'indoor' must be true or false, got {raw!r}")
+    return raw
+
+
 def _looks_like_name_to_workout_mapping(data: dict) -> bool:
     """True for ``{"some name": {..."steps": [...]}, ...}``.
 
@@ -260,6 +279,8 @@ def parse_workout(data: dict) -> WorkoutPlan:
     description = raw_desc.strip()
     estimated_tss = _parse_estimated_tss(data.get("estimated_tss"))
     ftp_watts = _parse_ftp_watts(data.get("ftp_watts"))
+    date = _parse_date(data.get("date"))
+    indoor = _parse_indoor(data.get("indoor", False))
     return WorkoutPlan(
         name=name,
         sport=sport,
@@ -267,4 +288,6 @@ def parse_workout(data: dict) -> WorkoutPlan:
         description=description,
         estimated_tss=estimated_tss,
         ftp_watts=ftp_watts,
+        date=date,
+        indoor=indoor,
     )

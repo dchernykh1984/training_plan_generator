@@ -1,3 +1,5 @@
+import datetime
+
 import pytest
 
 from app.adapters.base import AdapterResult, PayloadAdapter
@@ -49,7 +51,7 @@ def test_fake_connector_registered_and_retrieved():
         def login(self, creds: Credentials) -> None:
             pass
 
-        def upload(self, payload: dict) -> str:
+        def upload(self, payload: dict, day: datetime.date | None = None) -> str:
             return "fake-id"
 
     CONNECTORS["fake"] = FakeConnector

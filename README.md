@@ -316,6 +316,8 @@ See [`templates/workout_garmin.json`](templates/workout_garmin.json) for a ready
 | `description` | string | no | Free-text description; surfaces in the Garmin and intervals.icu payloads |
 | `ftp_watts` | integer | no | Athlete's FTP in watts (positive) |
 | `estimated_tss` | number | no | Estimated Training Stress Score (&gt;= 0) |
+| `date` | string | no | Day to put the workout on, `YYYY-MM-DD`; see the connector notes for what each service does with it |
+| `indoor` | boolean | no | `true` for an indoor (trainer) workout; default `false` |
 
 **Step fields**
 
@@ -362,8 +364,14 @@ Valid value ranges:
   the account, e.g. your e-mail. As with Garmin, the CLI looks the entry up by
   service (JSON) or Title (KeePass) `intervals` and a URL containing `intervals`,
   such as `https://intervals.icu`.
-- Workouts are added to the workout library of the key's owner, in a folder named
-  **Training Plan Generator** that is created on the first upload.
+- A plan with a `date` goes on the intervals.icu calendar on that day. From there
+  intervals.icu sends it on to the services connected under **Settings** ->
+  **Connections** with "Upload planned workouts" on (Garmin, Zwift, Wahoo, COROS,
+  Suunto and others), usually for the next 7 days. Zwift only takes workouts marked
+  `"indoor": true`. Uploading the same workout name for the same day again updates
+  that calendar entry instead of adding a second one.
+- A plan without a `date` is added to the workout library of the key's owner, in a
+  folder named **Training Plan Generator** that is created on the first such upload.
 - Each workout is sent in the intervals.icu workout text format, so it stays
   editable in the workout builder. Power, cadence, time, distance, repeats and step
   names map one to one; the step type becomes the step intensity.
