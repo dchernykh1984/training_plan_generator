@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.1](https://github.com/dchernykh1984/training_plan_generator/compare/v0.2.0...v0.2.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* **adapters:** hide the escape in a numbered intervals.icu description ([5ef33a0](https://github.com/dchernykh1984/training_plan_generator/commit/5ef33a0f06874fb8ecac6441f0ee1cce5a2dfeff))
+* **adapters:** keep intervals.icu steps whose name starts like a list ([5f88d3d](https://github.com/dchernykh1984/training_plan_generator/commit/5f88d3da94c54570ce6784de2bbd29d8b9ed581c))
+* **adapters:** stop intervals.icu reading the description as an option ([622aabf](https://github.com/dchernykh1984/training_plan_generator/commit/622aabf10ea9b696cb83b73f7711dbdd3ad6a5da))
+
 ## [0.2.0](https://github.com/dchernykh1984/training_plan_generator/compare/v0.1.7...v0.2.0) (2026-11-15)
 
 
