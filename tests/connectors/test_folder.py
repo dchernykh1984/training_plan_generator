@@ -57,3 +57,16 @@ def test_upload_writes_binary_content(tmp_path):
 def test_upload_without_login_raises(tmp_path):
     with pytest.raises(RuntimeError, match="call login"):
         _TextConnector(tmp_path).upload({"name": "W", "content": ""})
+
+
+def test_two_workouts_of_one_name_and_day_get_two_files(tmp_path):
+    connector = _TextConnector(tmp_path)
+    connector.login()
+    day = datetime.date(2026, 11, 20)
+
+    first = connector.upload({"name": "Easy Run", "content": "am"}, day)
+    second = connector.upload({"name": "Easy Run", "content": "pm"}, day)
+
+    assert first == str(tmp_path / "2026-11-20_easy_run.txt")
+    assert second == str(tmp_path / "2026-11-20_easy_run_2.txt")
+    assert (tmp_path / "2026-11-20_easy_run.txt").read_text() == "am"
