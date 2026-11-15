@@ -117,6 +117,22 @@ def test_plan_description_never_starts_a_step_list(description, text):
     assert result.payload["description"] == f"{text}\n\n- 1m intensity=warmup"
 
 
+@pytest.mark.parametrize(
+    ("description", "text"),
+    [
+        ("Power: hold 105-115% FTP", r"Power\: hold 105-115% FTP"),
+        ("category : VO2max", r"category \: VO2max"),
+        ("Pool length: 25m", r"Pool length\: 25m"),
+        ("Power zones: 1-7", "Power zones: 1-7"),
+    ],
+)
+def test_plan_description_is_not_read_as_a_workout_option(description, text):
+    result = _payload(
+        [{"type": "warmup", "duration_seconds": 60}], description=description
+    )
+    assert result.payload["description"] == f"{text}\n\n- 1m intensity=warmup"
+
+
 def test_repeats_are_separated_from_neighbouring_steps():
     effort = {"type": "interval", "duration_seconds": 30}
     result = _payload(

@@ -90,6 +90,9 @@ def _description(plan: WorkoutPlan, warnings: list[str]) -> str:
     # A backslash before a digit is no Markdown escape and would show, so a
     # numbered start is escaped at its dot.
     text = re.sub(r"^(\d{1,9})([.)] )", r"\1\\\2", text)
+    # intervals.icu reads a "Power:", "Category:" or "Pool length:" line as a
+    # workout option and drops it from the description; an escaped colon stays.
+    text = re.sub(r"^((?:power|category|pool length) ?):", r"\1\\:", text, flags=re.I)
     blocks = [text]
     singles: list[str] = []
     for step in plan.steps:
