@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/dchernykh1984/training_plan_generator/compare/v0.3.1...v0.3.2) (2026-11-15)
+
+
+### Documentation
+
+* say that docs commits cut a release too ([0d0ae60](https://github.com/dchernykh1984/training_plan_generator/commit/0d0ae605d82ab06b4acae372103e87f24aed72db))
+
 ## [0.3.1](https://github.com/dchernykh1984/training_plan_generator/compare/v0.3.0...v0.3.1) (2026-11-15)
 
 
