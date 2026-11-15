@@ -335,7 +335,7 @@ See [`templates/workout_garmin.json`](templates/workout_garmin.json) for a ready
 | `ftp_watts` | integer | no | Athlete's FTP in watts (positive) |
 | `estimated_tss` | number | no | Estimated Training Stress Score (&gt;= 0) |
 | `date` | string | no | Day to put the workout on, `YYYY-MM-DD`; see the connector notes for what each service does with it |
-| `indoor` | boolean | no | `true` for an indoor (trainer) workout; default `false` |
+| `indoor` | boolean | no | `true` for an indoor (trainer) workout, default `false`; passed on by intervals.icu, where Zwift takes only indoor workouts |
 
 **Step fields**
 
