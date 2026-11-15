@@ -86,7 +86,11 @@ def _description(plan: WorkoutPlan, warnings: list[str]) -> str:
     # none of it can parse as a step; blank lines keep each "Nx" header off its
     # neighbours' step lists.
     text = " ".join(plan.description.split())
-    blocks = [re.sub(r"^([-+*]|\d{1,9}[.)](?=\s))", r"\\\1", text)]
+    text = re.sub(r"^([-+*])", r"\\\1", text)
+    # A backslash before a digit is no Markdown escape and would show, so a
+    # numbered start is escaped at its dot.
+    text = re.sub(r"^(\d{1,9})([.)] )", r"\1\\\2", text)
+    blocks = [text]
     singles: list[str] = []
     for step in plan.steps:
         if isinstance(step, RepeatStep):
