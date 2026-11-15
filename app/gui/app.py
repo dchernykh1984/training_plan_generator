@@ -231,9 +231,10 @@ class UploadWorker(QThread):
             self.log_line.emit(f"[WARNING] {w}")
             log.warning(w)
 
-        self.log_line.emit(f'Uploading "{plan.name}"...')
+        when = f" for {plan.date}" if plan.date else ""
+        self.log_line.emit(f'Uploading "{plan.name}"{when}...')
         try:
-            workout_id = connector.upload(adapt_result.payload)
+            workout_id = connector.upload(adapt_result.payload, plan.date)
         except Exception as exc:
             self.log_line.emit(f"[ERROR] Upload {plan.name!r}: {exc}")
             log.error(f"upload error {plan.name!r}: {exc}")

@@ -1,3 +1,5 @@
+import datetime
+
 import pytest
 
 from app.models.parser import parse_workout, parse_workout_file
@@ -980,3 +982,41 @@ def test_triple_nested_repeat_raises():
     )
     with pytest.raises(ValueError, match="Nested repeat"):
         parse_workout(data)
+
+
+# --- plan date and indoor flag ---
+
+
+def test_plan_date_defaults_to_none():
+    assert parse_workout(_plan()).date is None
+
+
+def test_plan_date_parsed():
+    assert parse_workout(_plan(date="2026-11-20")).date == datetime.date(2026, 11, 20)
+
+
+@pytest.mark.parametrize(
+    "raw", ["20261120", "2026-11-20T08:00", "next monday", 20261120]
+)
+def test_plan_date_must_be_a_day_string(raw):
+    with pytest.raises(ValueError, match="YYYY-MM-DD"):
+        parse_workout(_plan(date=raw))
+
+
+def test_plan_date_must_be_a_calendar_day():
+    with pytest.raises(ValueError, match="not a calendar day"):
+        parse_workout(_plan(date="2026-02-30"))
+
+
+def test_plan_indoor_defaults_to_false():
+    assert parse_workout(_plan()).indoor is False
+
+
+def test_plan_indoor_parsed():
+    assert parse_workout(_plan(indoor=True)).indoor is True
+
+
+@pytest.mark.parametrize("raw", ["yes", 1, None])
+def test_plan_indoor_must_be_a_bool(raw):
+    with pytest.raises(ValueError, match="'indoor' must be true or false"):
+        parse_workout(_plan(indoor=raw))

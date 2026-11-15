@@ -161,9 +161,10 @@ def _upload_one(
         log.warning(w)
     payload = adapt_result.payload
 
-    print(f'Uploading workout "{plan.name}"...')
+    when = f" for {plan.date}" if plan.date else ""
+    print(f'Uploading workout "{plan.name}"{when}...')
     try:
-        workout_id = connector.upload(payload)
+        workout_id = connector.upload(payload, plan.date)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         log.error(f"upload error for {plan.name!r}: {e}")

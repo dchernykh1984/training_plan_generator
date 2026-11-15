@@ -50,6 +50,7 @@ def test_example_plan_becomes_intervals_workout_text():
             "\n"
             "- Easy Spin Down<!> 5m 90-120w intensity=cooldown"
         ),
+        "indoor": False,
     }
     assert result.warnings == [
         "Step 'interval': intervals.icu has no absolute heart rate targets; "
@@ -190,3 +191,8 @@ def test_every_supported_sport_and_target_type_is_mapped():
     assert set(_SPORT_TYPE) == SUPPORTED_SPORTS
     # Heart rate has no absolute form in the workout text, so it goes to the cue.
     assert SUPPORTED_TARGET_TYPES - set(_UNITS) == {"heart_rate"}
+
+
+def test_indoor_flag_is_passed_on():
+    result = _payload([{"type": "warmup", "duration_seconds": 60}], indoor=True)
+    assert result.payload["indoor"] is True

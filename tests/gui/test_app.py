@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import json
 from collections.abc import Iterator
 from pathlib import Path
@@ -1286,3 +1287,14 @@ def test_main_window_refreshes_targets_when_returning_to_upload_tab(
     cell = win._upload_tab._table.item(0, 1)
     assert cell is not None
     assert "missing" not in cell.text()
+
+
+def test_upload_worker_passes_the_plan_date(qtbot, tmp_path: Path) -> None:
+    plan = _plan_file(tmp_path, {**_VALID_PLAN, "date": "2026-11-20"})
+    connector = MagicMock()
+    connector.upload.return_value = "w-1"
+    with patch("app.connectors.registry.get_connector", return_value=connector):
+        lines, results = _run_worker(qtbot, _worker(plan, tmp_path))
+    assert results == [0]
+    assert connector.upload.call_args.args[1] == datetime.date(2026, 11, 20)
+    assert any('"Morning Ride" for 2026-11-20' in ln for ln in lines)

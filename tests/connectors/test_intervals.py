@@ -1,3 +1,4 @@
+import datetime
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -51,7 +52,7 @@ def test_upload_goes_to_the_existing_folder_and_returns_the_workout_id():
     )
 
 
-def test_login_creates_the_folder_when_missing():
+def test_first_library_upload_creates_the_folder_when_missing():
     others = [
         {"id": 1, "name": "Base", "type": "FOLDER"},
         {"id": 2, "name": "Training Plan Generator", "type": "PLAN"},
@@ -59,6 +60,8 @@ def test_login_creates_the_folder_when_missing():
     connector, session = _logged_in(
         _response(others), _response({"id": 9}), _response({"id": 5})
     )
+    # Logging in only reads the folders, so a calendar-only user gets no folder.
+    assert session.request.call_count == 1
 
     connector.upload({"name": "W"})
 
@@ -69,6 +72,38 @@ def test_login_creates_the_folder_when_missing():
         timeout=30,
     )
     assert session.request.call_args.kwargs["json"]["folder_id"] == 9
+
+
+def test_folder_is_created_only_once():
+    connector, session = _logged_in(
+        _response([]), _response({"id": 9}), _response({"id": 5}), _response({"id": 6})
+    )
+
+    connector.upload({"name": "A"})
+    connector.upload({"name": "B"})
+
+    posted = [c.args[1] for c in session.request.call_args_list if c.args[0] == "POST"]
+    assert posted == [f"{_API}/folders", f"{_API}/workouts", f"{_API}/workouts"]
+
+
+def test_dated_upload_goes_on_the_calendar_and_updates_a_repeat():
+    connector, session = _logged_in(_response([]), _response({"id": 77}))
+    payload = {"name": "W", "type": "Ride", "description": "- 1m", "indoor": True}
+
+    event_id = connector.upload(payload, datetime.date(2026, 11, 20))
+
+    assert event_id == "77"
+    assert session.request.call_args == call(
+        "POST",
+        f"{_API}/events?upsertOnUid=true",
+        json={
+            **payload,
+            "category": "WORKOUT",
+            "start_date_local": "2026-11-20T00:00:00",
+            "uid": "training-plan-generator/2026-11-20/Ride/W",
+        },
+        timeout=30,
+    )
 
 
 def test_rejected_api_key_fails_login_without_leaking_it():

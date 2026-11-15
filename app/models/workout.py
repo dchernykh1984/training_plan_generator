@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass
 
 SUPPORTED_SPORTS: frozenset[str] = frozenset({"cycling", "running", "swimming"})
@@ -44,3 +45,6 @@ class WorkoutPlan:
     estimated_tss: float | None = None
     # reserved for percent_ftp target conversion (task 2.8)
     ftp_watts: int | None = None
+    # Day to put the workout on in the service's calendar; None means no day.
+    date: datetime.date | None = None
+    indoor: bool = False
