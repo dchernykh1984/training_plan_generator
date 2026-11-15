@@ -585,3 +585,20 @@ def test_a_plan_the_connector_cannot_take_fails_alone(tmp_path, capsys):
 
     assert "Zwift workouts are rides" in capsys.readouterr().err
     assert (tmp_path / "ride.zwo").exists()
+
+
+def test_erg_files_need_an_output_dir(tmp_path, capsys):
+    args = _upload_args(tmp_path, connector="erg-file", provider=None)
+    assert _cmd_upload(args) == 1
+    assert "Choose the folder to write .erg files to" in capsys.readouterr().err
+
+
+def test_upload_writes_an_erg_file(tmp_path):
+    args = _upload_args(
+        tmp_path, connector="erg-file", provider=None, output_dir=str(tmp_path)
+    )
+    assert _cmd_upload(args) == 0
+    assert (
+        "0.00\t150\n10.00\t150\n"
+        in (tmp_path / "3x8_cycling_intervals.erg").read_text()
+    )
