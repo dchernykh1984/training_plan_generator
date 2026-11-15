@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/dchernykh1984/training_plan_generator/compare/v0.1.7...v0.2.0) (2026-11-15)
+
+
+### Features
+
+* **connectors:** upload workouts to intervals.icu ([#43](https://github.com/dchernykh1984/training_plan_generator/issues/43)) ([5bf41af](https://github.com/dchernykh1984/training_plan_generator/commit/5bf41aff1ff0b41b193137cb74b63a96c2a3be4d))
+
 ## [0.1.7](https://github.com/dchernykh1984/training_plan_generator/compare/v0.1.6...v0.1.7) (2026-11-07)
 
 
