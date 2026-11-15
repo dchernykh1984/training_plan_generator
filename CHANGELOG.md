@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/dchernykh1984/training_plan_generator/compare/v0.3.0...v0.3.1) (2026-11-15)
+
+
+### Documentation
+
+* name the ARM64 file in the Linux run commands ([a09901c](https://github.com/dchernykh1984/training_plan_generator/commit/a09901c1075ce695e911f79efc39d5b85825aa84))
+* use the real app name in the macOS quarantine command ([a23d615](https://github.com/dchernykh1984/training_plan_generator/commit/a23d61530f36fe122c5e5effb44ba7d105119f95))
+
 ## [0.3.0](https://github.com/dchernykh1984/training_plan_generator/compare/v0.2.1...v0.3.0) (2026-11-15)
 
 
