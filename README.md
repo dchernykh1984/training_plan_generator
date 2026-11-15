@@ -453,6 +453,10 @@ when they encounter unsupported optional parameters:
 - Unsupported `duration_type` -&gt; fallback applied, warning added.
 - Service limit exceeded (e.g. step count) -&gt; upload still attempted, warning added.
 
+A plan the format cannot hold at all (a sport other than cycling for Zwift or ERG,
+or more than 1000 steps once repeats are written out) raises `ValueError`: the CLI
+and the GUI report that workout as failed and go on with the others.
+
 Warnings are printed to stdout and written to the run log by the CLI.
 
 ### JSON credentials file format
