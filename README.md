@@ -416,7 +416,7 @@ Valid value ranges:
   without it they become free-ride steps and a warning is written to the run log.
   Zwift holds one power and one cadence per step, so a range becomes its middle.
 - Zwift has no heart-rate targets, so a `heart_rate` target is kept in the step
-  text, and repeats are written out step by step.
+  text, and repeats are written out step by step, up to 1000 steps in all.
 - Zwift steps are always timed: an `open` or `distance` step becomes a 5-minute
   step, with a warning.
 - The file is named after the workout, prefixed with the plan's `date` if it has

@@ -33,8 +33,25 @@ class PayloadAdapter(ABC):
     def to_payload(self, plan: WorkoutPlan) -> AdapterResult: ...
 
 
+# Written out, a typo such as a 100000x repeat would otherwise build a file of
+# millions of steps; real workouts stay far below this.
+MAX_FLAT_STEPS = 1000
+
+
+def _flat_count(steps: tuple[WorkoutStep | RepeatStep, ...]) -> int:
+    return sum(
+        _flat_count(s.steps) * s.count if isinstance(s, RepeatStep) else 1
+        for s in steps
+    )
+
+
 def flatten_steps(steps: tuple[WorkoutStep | RepeatStep, ...]) -> list[WorkoutStep]:
     """The steps in the order they are done, with every repeat written out."""
+    total = _flat_count(steps)
+    if total > MAX_FLAT_STEPS:
+        raise ValueError(
+            f"{total} steps once repeats are written out; at most {MAX_FLAT_STEPS}"
+        )
     flat: list[WorkoutStep] = []
     for step in steps:
         if isinstance(step, RepeatStep):
