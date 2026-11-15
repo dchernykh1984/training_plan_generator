@@ -201,8 +201,9 @@ The window has two tabs:
 - **Upload** - pick a plan file, then build a table of **upload targets**. Each row
   is one destination: a connector plus one of the credentials from the Credentials
   tab. A connector that writes files (`zwift`, `erg-file`, `fit-file`) takes a
-  folder instead of a credential. Pressing **Upload** sends *every workout in the file* to *every target
-  in the table*; progress and warnings appear in the log pane below the button.
+  folder instead of a credential. Pressing **Upload** sends *every workout in the
+  file* to *every target in the table*; progress and warnings appear in the log
+  pane below the button.
 
 Double-clicking a row in either table opens it for editing.
 
@@ -403,12 +404,12 @@ Valid value ranges:
 
 **Zwift notes**
 
-- Zwift has no upload API; it reads custom workouts from
-  `Documents/Zwift/Workouts/<your Zwift ID>` on the computer it runs on and syncs
-  them to your account on the next start. The connector finds that folder itself
-  when there is exactly one Zwift ID in it; otherwise choose the folder. Other apps
-  that import `.zwo` files (MyWhoosh, ROUVY, Xert, intervals.icu) can use the same
-  files.
+- Zwift's workout API is open to partners only (intervals.icu is one), but Zwift
+  also reads custom workouts from `Documents/Zwift/Workouts/<your Zwift ID>` on the
+  computer it runs on and syncs them to your account on the next start. The
+  connector finds that folder itself when there is exactly one Zwift ID in it;
+  otherwise choose the folder. Other apps that import `.zwo` files (MyWhoosh,
+  ROUVY, Xert, intervals.icu) can use the same files.
 - Only `cycling` plans become Zwift workouts; other sports fail with an error.
 - Zwift sets power as a share of FTP, so power targets need the plan's `ftp_watts`;
   without it they become free-ride steps and a warning is written to the run log.
