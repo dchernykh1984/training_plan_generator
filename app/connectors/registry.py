@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from app.adapters.base import PayloadAdapter
 from app.adapters.erg_workout import ErgWorkoutAdapter
+from app.adapters.fit_workout import FitWorkoutAdapter
 from app.adapters.garmin_workout import GarminWorkoutAdapter
 from app.adapters.intervals_workout import IntervalsWorkoutAdapter
 from app.adapters.zwift_workout import ZwiftWorkoutAdapter
 from app.connectors.base import WorkoutConnector
 from app.connectors.erg_file import ErgFileConnector
+from app.connectors.fit_file import FitFileConnector
 from app.connectors.folder import FolderConnector
 from app.connectors.garmin import GarminConnector
 from app.connectors.intervals import IntervalsConnector
@@ -17,6 +19,7 @@ CONNECTORS: dict[str, type[WorkoutConnector]] = {
     "intervals": IntervalsConnector,
     "zwift": ZwiftConnector,
     "erg-file": ErgFileConnector,
+    "fit-file": FitFileConnector,
 }
 
 PAYLOAD_ADAPTERS: dict[str, type[PayloadAdapter]] = {
@@ -24,6 +27,7 @@ PAYLOAD_ADAPTERS: dict[str, type[PayloadAdapter]] = {
     "intervals": IntervalsWorkoutAdapter,
     "zwift": ZwiftWorkoutAdapter,
     "erg-file": ErgWorkoutAdapter,
+    "fit-file": FitWorkoutAdapter,
 }
 
 

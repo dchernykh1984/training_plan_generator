@@ -200,8 +200,8 @@ The window has two tabs:
   database and reports whether an entry with that Title exists.
 - **Upload** - pick a plan file, then build a table of **upload targets**. Each row
   is one destination: a connector plus one of the credentials from the Credentials
-  tab. A connector that writes files (`zwift`, `erg-file`) takes a folder instead
-  of a credential. Pressing **Upload** sends *every workout in the file* to *every target
+  tab. A connector that writes files (`zwift`, `erg-file`, `fit-file`) takes a
+  folder instead of a credential. Pressing **Upload** sends *every workout in the file* to *every target
   in the table*; progress and warnings appear in the log pane below the button.
 
 Double-clicking a row in either table opens it for editing.
@@ -265,8 +265,9 @@ uv run training-plan-generator upload \
 ```
 
 For apps that import workout files by hand, `--connector erg-file --output-dir PATH`
-writes `.erg` files that TrainerRoad, ROUVY, Xert and Golden Cheetah import (see the
-ERG notes under [JSON plan format](#json-plan-format)).
+writes `.erg` files that TrainerRoad, ROUVY, Xert and Golden Cheetah import, and
+`--connector fit-file --output-dir PATH` writes FIT workout files for bike computers
+and watches (see the ERG and FIT notes under [JSON plan format](#json-plan-format)).
 
 Use `--login` to select a specific account when the credentials store has more than one
 entry for the same service:
@@ -430,6 +431,16 @@ Valid value ranges:
   power range becomes its middle and a step without a power target is set to 0 W,
   each with a warning. Open and distance steps become 5-minute steps, as for Zwift.
 
+**FIT file notes**
+
+- A FIT workout file keeps the whole plan: every sport, time, distance and open
+  steps, repeats, step names and power, heart-rate and cadence ranges in absolute
+  units. Like Garmin Connect it takes 2 targets per step (`power` > `heart_rate` >
+  `cadence`) and drops a third with a warning.
+- Copy the file to a device over USB, e.g. into `Garmin/NewFiles` on a Garmin, or
+  import it into an app that reads FIT workouts. Files are named like the Zwift
+  ones.
+
 ### Adapter warning/fallback contract
 
 Adapters return warnings in `AdapterResult.warnings` rather than raising exceptions
@@ -457,6 +468,7 @@ logs/
     <slug>.intervals.json       intervals.icu payload
     <slug>.zwift.json           Zwift payload (the .zwo text and its name)
     <slug>.erg-file.json        ERG payload (the .erg text and its name)
+    <slug>.fit-file.json        FIT payload (the file in base64 and its name)
     <slug>.source.json          original source plan JSON
   training_plan_generator.log   append log across all runs
 ```

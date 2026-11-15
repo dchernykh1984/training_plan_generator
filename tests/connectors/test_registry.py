@@ -4,11 +4,13 @@ import pytest
 
 from app.adapters.base import AdapterResult, PayloadAdapter
 from app.adapters.erg_workout import ErgWorkoutAdapter
+from app.adapters.fit_workout import FitWorkoutAdapter
 from app.adapters.garmin_workout import GarminWorkoutAdapter
 from app.adapters.intervals_workout import IntervalsWorkoutAdapter
 from app.adapters.zwift_workout import ZwiftWorkoutAdapter
 from app.connectors.base import WorkoutConnector
 from app.connectors.erg_file import ErgFileConnector
+from app.connectors.fit_file import FitFileConnector
 from app.connectors.garmin import GarminConnector
 from app.connectors.intervals import IntervalsConnector
 from app.connectors.registry import (
@@ -110,3 +112,9 @@ def test_get_erg_file_connector_and_adapter():
     assert isinstance(get_connector("erg-file"), ErgFileConnector)
     assert isinstance(get_adapter("erg-file"), ErgWorkoutAdapter)
     assert folder_connector_class("erg-file") is ErgFileConnector
+
+
+def test_get_fit_file_connector_and_adapter():
+    assert isinstance(get_connector("fit-file"), FitFileConnector)
+    assert isinstance(get_adapter("fit-file"), FitWorkoutAdapter)
+    assert folder_connector_class("fit-file") is FitFileConnector

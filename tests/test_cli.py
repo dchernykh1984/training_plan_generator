@@ -602,3 +602,17 @@ def test_upload_writes_an_erg_file(tmp_path):
         "0.00\t150\n10.00\t150\n"
         in (tmp_path / "3x8_cycling_intervals.erg").read_text()
     )
+
+
+def test_upload_writes_a_fit_file(tmp_path):
+    plan = _plan_file(tmp_path, {**_VALID_PLAN, "date": "2026-11-20"})
+    args = _upload_args(
+        tmp_path,
+        plan=plan,
+        connector="fit-file",
+        provider=None,
+        output_dir=str(tmp_path),
+    )
+    assert _cmd_upload(args) == 0
+    data = (tmp_path / "2026-11-20_3x8_cycling_intervals.fit").read_bytes()
+    assert data[8:12] == b".FIT"
