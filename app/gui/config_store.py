@@ -8,7 +8,7 @@ _DEFAULT_CONFIG_DIR = Path.home() / ".config" / "training-plan-generator"
 
 # Single source of truth for supported connectors in the GUI.
 # Extend here and in app.py to add new connectors.
-CONNECTOR_TYPES: tuple[str, ...] = ("garmin", "intervals")
+CONNECTOR_TYPES: tuple[str, ...] = ("garmin", "intervals", "zwift")
 
 
 # ---------------------------------------------------------------------------
@@ -38,12 +38,14 @@ class UploadTarget:
     """One upload destination: a connector plus the credential to use for it.
 
     The credential is referenced by (service, login) so that editing the
-    credential itself does not invalidate the target.
+    credential itself does not invalidate the target. A connector that writes
+    files has no credential; it takes a folder, empty for its own default one.
     """
 
     connector: str = "garmin"
     credential_service: str = ""
     credential_login: str = ""
+    folder: str = ""
 
 
 @dataclass
@@ -125,6 +127,7 @@ class ConfigStore:
                     "connector": t.connector,
                     "credential_service": t.credential_service,
                     "credential_login": t.credential_login,
+                    "folder": t.folder,
                 }
                 for t in targets
             ],
@@ -185,6 +188,7 @@ def _parse_target(raw: dict) -> UploadTarget:
         connector=raw.get("connector", "garmin"),
         credential_service=raw.get("credential_service", ""),
         credential_login=raw.get("credential_login", ""),
+        folder=raw.get("folder", ""),
     )
 
 

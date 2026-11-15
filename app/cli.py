@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from app.cache import WorkoutCache
+from app.connectors.folder import FolderConnector
 from app.connectors.registry import CONNECTORS, get_adapter, get_connector
 from app.credentials.base import CredentialRequest
 from app.credentials.registry import PROVIDER_FACTORIES, get_factory
@@ -45,10 +46,18 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     up.add_argument(
         "--credentials-provider",
-        required=True,
         dest="credentials_provider",
         choices=sorted(PROVIDER_FACTORIES),
-        help="Credentials provider",
+        help="Credentials provider (not needed by connectors that write files)",
+    )
+    up.add_argument(
+        "--output-dir",
+        metavar="PATH",
+        default=None,
+        help=(
+            "Folder for a connector that writes files"
+            " (zwift: Zwift's own folder by default)"
+        ),
     )
     up.add_argument(
         "--login",
@@ -99,6 +108,60 @@ def _cmd_upload(args: argparse.Namespace) -> int:
     src_path = cache.save_source_plan(Path(args.plan).stem, source_bytes)
     log.info(f"source cached: {src_path}")
 
+    connector = get_connector(args.connector)
+    if isinstance(connector, FolderConnector):
+        ready = _open_folder(connector, args, log)
+    else:
+        ready = _log_in(connector, args, log)
+    if not ready:
+        return 1
+
+    failed = 0
+    for plan in plans:
+        if not _upload_one(plan, connector, cache, args, log):
+            failed += 1
+
+    uploaded = len(plans) - failed
+    print(f"Done: {uploaded}/{len(plans)} workout(s) uploaded to {args.connector}.")
+    print(f"Log:    {cache_dir / 'training_plan_generator.log'}")
+    return 1 if failed else 0
+
+
+def _open_folder(
+    connector: FolderConnector, args: argparse.Namespace, log: RunLogger
+) -> bool:
+    """Check the folder a file-writing connector puts its workouts in."""
+    if args.output_dir:
+        connector.folder = Path(args.output_dir).expanduser()
+    try:
+        connector.login()
+    except RuntimeError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        log.error(f"folder error: {e}")
+        return False
+    print(f"Writing {connector.extension} files to {connector.folder}")
+    log.info(f"folder ready: {connector.folder}")
+    return True
+
+
+def _log_in(
+    connector: WorkoutConnector, args: argparse.Namespace, log: RunLogger
+) -> bool:
+    """Read the credentials for a service connector and log in with them."""
+    if args.output_dir:
+        print(
+            f"Error: --output-dir is only for connectors that write files, "
+            f"not {args.connector}",
+            file=sys.stderr,
+        )
+        return False
+    if args.credentials_provider is None:
+        print(
+            f"Error: --credentials-provider is required for {args.connector}",
+            file=sys.stderr,
+        )
+        return False
+
     print(f"Reading credentials ({args.credentials_provider})...")
     try:
         factory = get_factory(args.credentials_provider)
@@ -110,7 +173,7 @@ def _cmd_upload(args: argparse.Namespace) -> int:
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         log.error(f"credentials error: {e}")
-        return 1
+        return False
 
     log.info(
         f"credentials loaded: provider={args.credentials_provider} "
@@ -118,7 +181,6 @@ def _cmd_upload(args: argparse.Namespace) -> int:
     )
 
     print(f"Logging in to {args.connector} ({creds.login})...")
-    connector = get_connector(args.connector)
     _garmin_logger = logging.getLogger("garminconnect.client")
     _orig_level = _garmin_logger.level
     _garmin_logger.setLevel(logging.ERROR)
@@ -127,21 +189,12 @@ def _cmd_upload(args: argparse.Namespace) -> int:
     except RuntimeError as e:
         print(f"Error: {e}", file=sys.stderr)
         log.error(f"login error: {e}")
-        return 1
+        return False
     finally:
         _garmin_logger.setLevel(_orig_level)
 
     log.info("login success")
-
-    failed = 0
-    for plan in plans:
-        if not _upload_one(plan, connector, cache, args, log):
-            failed += 1
-
-    uploaded = len(plans) - failed
-    print(f"Done: {uploaded}/{len(plans)} workout(s) uploaded to {args.connector}.")
-    print(f"Log:    {cache_dir / 'training_plan_generator.log'}")
-    return 1 if failed else 0
+    return True
 
 
 def _upload_one(
@@ -155,7 +208,12 @@ def _upload_one(
     log.info(f"plan: name={plan.name!r} sport={plan.sport} steps={len(plan.steps)}")
     print(f"Building {args.connector} payload for {plan.name!r}...")
     adapter = get_adapter(args.connector)
-    adapt_result = adapter.to_payload(plan)
+    try:
+        adapt_result = adapter.to_payload(plan)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        log.error(f"payload error for {plan.name!r}: {e}")
+        return False
     for w in adapt_result.warnings:
         print(f"Warning: {w}")
         log.warning(w)

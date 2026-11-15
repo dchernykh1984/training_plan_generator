@@ -26,8 +26,10 @@ def store(tmp_path: Path) -> ConfigStore:
 # ---------------------------------------------------------------------------
 
 
-def test_connector_types_contains_garmin_and_intervals() -> None:
-    assert {"garmin", "intervals"} <= set(CONNECTOR_TYPES)
+def test_connector_types_contains_every_connector() -> None:
+    from app.connectors.registry import CONNECTORS
+
+    assert set(CONNECTOR_TYPES) == set(CONNECTORS)
 
 
 # ---------------------------------------------------------------------------
@@ -202,6 +204,14 @@ def test_target_defaults(store: ConfigStore) -> None:
     target = store.load_targets()[0]
     assert target.connector == "garmin"
     assert target.credential_login == ""
+    assert target.folder == ""
+
+
+def test_folder_target_roundtrip(store: ConfigStore) -> None:
+    store.save_targets([UploadTarget(connector="zwift", folder="/home/me/zwift")])
+    assert store.load_targets() == [
+        UploadTarget(connector="zwift", folder="/home/me/zwift")
+    ]
 
 
 def test_save_targets_overwrites_previous(store: ConfigStore) -> None:

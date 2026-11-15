@@ -5,15 +5,18 @@ import pytest
 from app.adapters.base import AdapterResult, PayloadAdapter
 from app.adapters.garmin_workout import GarminWorkoutAdapter
 from app.adapters.intervals_workout import IntervalsWorkoutAdapter
+from app.adapters.zwift_workout import ZwiftWorkoutAdapter
 from app.connectors.base import WorkoutConnector
 from app.connectors.garmin import GarminConnector
 from app.connectors.intervals import IntervalsConnector
 from app.connectors.registry import (
     CONNECTORS,
     PAYLOAD_ADAPTERS,
+    folder_connector_class,
     get_adapter,
     get_connector,
 )
+from app.connectors.zwift import ZwiftConnector
 from app.credentials.base import Credentials
 
 
@@ -88,3 +91,14 @@ def test_fake_adapter_registered_and_retrieved():
 def test_registries_clean_after_cleanup():
     assert "fake" not in CONNECTORS
     assert "fake" not in PAYLOAD_ADAPTERS
+
+
+def test_get_zwift_connector_and_adapter():
+    assert isinstance(get_connector("zwift"), ZwiftConnector)
+    assert isinstance(get_adapter("zwift"), ZwiftWorkoutAdapter)
+
+
+def test_folder_connector_class_tells_file_connectors_apart():
+    assert folder_connector_class("zwift") is ZwiftConnector
+    assert folder_connector_class("garmin") is None
+    assert folder_connector_class("polar") is None

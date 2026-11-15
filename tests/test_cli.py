@@ -47,6 +47,7 @@ def _upload_args(
     creds_keepass=None,
     keepass_password=None,
     login=None,
+    output_dir=None,
 ):
     import argparse
 
@@ -60,6 +61,7 @@ def _upload_args(
         creds_keepass=creds_keepass,
         keepass_password=keepass_password,
         login=login,
+        output_dir=output_dir,
     )
     return ns
 
@@ -518,3 +520,68 @@ def test_upload_passes_the_plan_date_to_the_connector(tmp_path, capsys):
 
     assert mock_connector.upload.call_args.args[1] == datetime.date(2026, 11, 20)
     assert '3x8 Cycling Intervals" for 2026-11-20...' in capsys.readouterr().out
+
+
+_ZWIFT_PLAN = {**_VALID_PLAN, "ftp_watts": 260}
+
+
+def test_upload_to_zwift_needs_no_credentials(tmp_path, capsys):
+    out = tmp_path / "zwift"
+    out.mkdir()
+    args = _build_parser().parse_args(
+        [
+            "upload",
+            "--plan",
+            str(_plan_file(tmp_path, _ZWIFT_PLAN)),
+            "--connector",
+            "zwift",
+            "--output-dir",
+            str(out),
+            "--cache-dir",
+            str(tmp_path / "cache"),
+        ]
+    )
+
+    assert _cmd_upload(args) == 0
+
+    zwo = (out / "3x8_cycling_intervals.zwo").read_text()
+    assert '<Warmup Duration="600" PowerLow="0.577" PowerHigh="0.577" />' in zwo
+    assert f"Writing .zwo files to {out}" in capsys.readouterr().out
+
+
+def test_upload_to_a_missing_folder_fails(tmp_path, capsys):
+    args = _upload_args(
+        tmp_path, connector="zwift", provider=None, output_dir=str(tmp_path / "no")
+    )
+    assert _cmd_upload(args) == 1
+    assert "Folder not found" in capsys.readouterr().err
+
+
+def test_output_dir_is_only_for_file_connectors(tmp_path, capsys):
+    args = _upload_args(tmp_path, output_dir=str(tmp_path))
+    assert _cmd_upload(args) == 1
+    assert "--output-dir is only for connectors that write files" in (
+        capsys.readouterr().err
+    )
+
+
+def test_a_service_connector_needs_a_credentials_provider(tmp_path, capsys):
+    args = _upload_args(tmp_path, provider=None)
+    assert _cmd_upload(args) == 1
+    assert "--credentials-provider is required for garmin" in capsys.readouterr().err
+
+
+def test_a_plan_the_connector_cannot_take_fails_alone(tmp_path, capsys):
+    plans = [{**_ZWIFT_PLAN, "sport": "running"}, {**_ZWIFT_PLAN, "name": "Ride"}]
+    args = _upload_args(
+        tmp_path,
+        plan=_plan_file(tmp_path, plans),
+        connector="zwift",
+        provider=None,
+        output_dir=str(tmp_path),
+    )
+
+    assert _cmd_upload(args) == 1
+
+    assert "Zwift workouts are rides" in capsys.readouterr().err
+    assert (tmp_path / "ride.zwo").exists()

@@ -734,6 +734,43 @@ def test_target_dialog_ok_disabled_without_credentials(qtbot) -> None:
     assert dlg.result_target().credential_service == ""
 
 
+def test_target_dialog_needs_a_credential_for_a_service(qtbot) -> None:
+    dlg = TargetDialog([])
+    qtbot.addWidget(dlg)
+    assert dlg._form.isRowVisible(dlg._credential)
+    assert not dlg._form.isRowVisible(dlg._folder_row)
+    assert not dlg._ok_btn.isEnabled()
+
+
+def test_target_dialog_takes_a_folder_for_zwift(qtbot) -> None:
+    dlg = TargetDialog([])
+    qtbot.addWidget(dlg)
+    dlg._connector.setCurrentText("zwift")
+    assert not dlg._form.isRowVisible(dlg._credential)
+    assert dlg._form.isRowVisible(dlg._folder_row)
+    # Zwift finds its own folder, so an empty one is fine.
+    assert dlg._ok_btn.isEnabled()
+    dlg._folder.setText(" /home/me/zwift ")
+    assert dlg.result_target() == UploadTarget("zwift", folder="/home/me/zwift")
+
+
+def test_target_dialog_preselects_a_folder_target(qtbot) -> None:
+    dlg = TargetDialog([], target=UploadTarget("zwift", folder="/home/me/zwift"))
+    qtbot.addWidget(dlg)
+    assert dlg._connector.currentText() == "zwift"
+    assert dlg._folder.text() == "/home/me/zwift"
+
+
+def test_target_dialog_browse_fills_the_folder(qtbot, monkeypatch) -> None:
+    dlg = TargetDialog([])
+    qtbot.addWidget(dlg)
+    monkeypatch.setattr(
+        "app.gui.app.QFileDialog.getExistingDirectory", lambda *a, **k: "/home/me/z"
+    )
+    dlg._browse_folder()
+    assert dlg._folder.text() == "/home/me/z"
+
+
 def test_target_dialog_preselects_existing_target(qtbot) -> None:
     other = CredentialEntry(service="garmin", url="", login="other@x", password="p")
     dlg = TargetDialog(
@@ -799,17 +836,27 @@ def test_upload_tab_add_target(qtbot, store: ConfigStore, monkeypatch) -> None:
     assert store.load_targets()[0].connector == "garmin"
 
 
-def test_upload_tab_add_target_warns_without_credentials(
+def test_upload_tab_adds_a_folder_target_without_credentials(
     qtbot, store: ConfigStore, monkeypatch
 ) -> None:
-    warned: list[str] = []
-    monkeypatch.setattr(
-        "app.gui.app.QMessageBox.warning", lambda *a, **k: warned.append(a[2])
-    )
-    tab = _upload_tab(qtbot, store)
+    tab = _upload_tab(qtbot, store)  # no credentials saved
+
+    class _AcceptDialog:
+        def __init__(self, *a, **k):
+            pass
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+        def result_target(self):
+            return UploadTarget("zwift", folder="/home/me/zwift")
+
+    monkeypatch.setattr("app.gui.app.TargetDialog", _AcceptDialog)
     tab._add_target()
-    assert warned
-    assert tab._table.rowCount() == 0
+    assert store.load_targets()[0].folder == "/home/me/zwift"
+    cell = tab._table.item(0, 1)
+    assert cell is not None
+    assert cell.text() == "folder: /home/me/zwift"
 
 
 def test_upload_tab_delete_target(qtbot, store: ConfigStore) -> None:
@@ -988,6 +1035,15 @@ def test_upload_tab_resolve_targets_reports_missing(qtbot, store: ConfigStore) -
     resolved, missing = tab._resolve_targets()
     assert resolved == []
     assert missing == ["garmin / garmin"]
+
+
+def test_upload_tab_resolves_a_folder_target_without_credentials(
+    qtbot, store: ConfigStore
+) -> None:
+    store.save_targets([UploadTarget("zwift", folder="/home/me/zwift")])
+    resolved, missing = _upload_tab(qtbot, store)._resolve_targets()
+    assert missing == []
+    assert resolved == [ResolvedTarget("zwift", folder="/home/me/zwift")]
 
 
 def test_upload_tab_resolve_targets_succeeds(qtbot, store: ConfigStore) -> None:
@@ -1298,3 +1354,49 @@ def test_upload_worker_passes_the_plan_date(qtbot, tmp_path: Path) -> None:
     assert results == [0]
     assert connector.upload.call_args.args[1] == datetime.date(2026, 11, 20)
     assert any('"Morning Ride" for 2026-11-20' in ln for ln in lines)
+
+
+_ZWIFT_PLAN = {
+    "name": "Morning Ride",
+    "sport": "cycling",
+    "ftp_watts": 250,
+    "steps": [
+        {
+            "type": "interval",
+            "duration_seconds": 60,
+            "targets": [{"type": "power", "low": 250, "high": 250}],
+        }
+    ],
+}
+
+
+def test_upload_worker_writes_a_zwift_file_into_the_folder(
+    qtbot, tmp_path: Path
+) -> None:
+    plan = _plan_file(tmp_path, {**_ZWIFT_PLAN, "date": "2026-11-20"})
+    folder = tmp_path / "zwift"
+    folder.mkdir()
+    target = ResolvedTarget("zwift", folder=str(folder))
+    lines, results = _run_worker(qtbot, _worker(plan, tmp_path, targets=[target]))
+    assert results == [0]
+    written = (folder / "2026-11-20_morning_ride.zwo").read_text()
+    assert '<SteadyState Duration="60" Power="1.0" />' in written
+    assert any(f"Writing .zwo files to {folder}" in ln for ln in lines)
+
+
+def test_upload_worker_reports_a_missing_folder(qtbot, tmp_path: Path) -> None:
+    plan = _plan_file(tmp_path, _ZWIFT_PLAN)
+    target = ResolvedTarget("zwift", folder=str(tmp_path / "nope"))
+    lines, results = _run_worker(qtbot, _worker(plan, tmp_path, targets=[target]))
+    assert results == [1]
+    assert any("[ERROR] Folder: Folder not found" in ln for ln in lines)
+
+
+def test_upload_worker_reports_a_plan_the_connector_cannot_take(
+    qtbot, tmp_path: Path
+) -> None:
+    plan = _plan_file(tmp_path, {**_ZWIFT_PLAN, "sport": "running"})
+    target = ResolvedTarget("zwift", folder=str(tmp_path))
+    lines, results = _run_worker(qtbot, _worker(plan, tmp_path, targets=[target]))
+    assert results == [1]
+    assert any("Zwift workouts are rides" in ln for ln in lines)
