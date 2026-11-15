@@ -2,15 +2,19 @@ from __future__ import annotations
 
 from app.adapters.base import PayloadAdapter
 from app.adapters.garmin_workout import GarminWorkoutAdapter
+from app.adapters.intervals_workout import IntervalsWorkoutAdapter
 from app.connectors.base import WorkoutConnector
 from app.connectors.garmin import GarminConnector
+from app.connectors.intervals import IntervalsConnector
 
 CONNECTORS: dict[str, type[WorkoutConnector]] = {
     "garmin": GarminConnector,
+    "intervals": IntervalsConnector,
 }
 
 PAYLOAD_ADAPTERS: dict[str, type[PayloadAdapter]] = {
     "garmin": GarminWorkoutAdapter,
+    "intervals": IntervalsWorkoutAdapter,
 }
 
 

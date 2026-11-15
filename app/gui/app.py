@@ -61,7 +61,7 @@ if TYPE_CHECKING:
     from app.models.workout import WorkoutPlan
     from app.run_log import RunLogger
 
-_KNOWN_CREDENTIAL_URLS = ("https://connect.garmin.com",)
+_KNOWN_CREDENTIAL_URLS = ("https://connect.garmin.com", "https://intervals.icu")
 
 # How the app calls itself to the user and to the OS shell. The macOS dock and
 # task switcher read this from the frozen bundle's Info.plist (see the build
