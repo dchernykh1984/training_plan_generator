@@ -42,3 +42,12 @@ def test_a_chosen_folder_wins(workouts_root, tmp_path):
 def test_connector_name_and_extension():
     assert ZwiftConnector().connector_name == "zwift"
     assert ZwiftConnector.extension == ".zwo"
+
+
+def test_a_refused_documents_folder_is_an_error_not_a_crash(workouts_root, monkeypatch):
+    def refuse(self, pattern):
+        raise PermissionError(1, "Operation not permitted")
+
+    monkeypatch.setattr(type(workouts_root), "glob", refuse)
+    with pytest.raises(RuntimeError, match=r"Cannot open the folder: .*not permitted"):
+        ZwiftConnector().login()
