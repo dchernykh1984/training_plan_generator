@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.3.0](https://github.com/dchernykh1984/training_plan_generator/compare/v0.2.1...v0.3.0) (2026-11-15)
+
+
+### Features
+
+* **adapters:** export rides as ERG files for TrainerRoad, ROUVY and Xert ([efa18e9](https://github.com/dchernykh1984/training_plan_generator/commit/efa18e918b327d02b29cb0b06c6c578ef269b1f8))
+* **adapters:** export workouts as FIT files for watches and bike computers ([02e0e6b](https://github.com/dchernykh1984/training_plan_generator/commit/02e0e6bb41a984b2d678941197b8bcdf473a5239))
+* **connectors:** put dated plans on the intervals.icu calendar ([8730cdd](https://github.com/dchernykh1984/training_plan_generator/commit/8730cdd87a3b27c6ecae9dbe12bbb70b2ccaac53))
+* **connectors:** schedule dated plans in the Garmin Connect calendar ([c030789](https://github.com/dchernykh1984/training_plan_generator/commit/c030789d7f059759d3302aa96a35bca7015a21cf))
+* **connectors:** write .zwo workouts into the Zwift custom workouts folder ([480917e](https://github.com/dchernykh1984/training_plan_generator/commit/480917e9afa232697d51e0456e776f5d9ff0400f))
+
+
+### Bug Fixes
+
+* **adapters:** refuse a repeat that would write out more than 1000 steps ([e54b8b4](https://github.com/dchernykh1984/training_plan_generator/commit/e54b8b4c39ea68702cc527d33f9074202ac15a9b))
+* **cli:** say how to choose the folder when a file connector has none ([113f78b](https://github.com/dchernykh1984/training_plan_generator/commit/113f78b2721fce893b7ad3785fe2be4439d97ca2))
+* **connectors:** find the Zwift folder when Windows keeps Documents in OneDrive ([f48c5be](https://github.com/dchernykh1984/training_plan_generator/commit/f48c5be616601c2538b02f094b6922413bd042fe))
+* **connectors:** keep two same-name workouts on one day as two entries ([5853c9f](https://github.com/dchernykh1984/training_plan_generator/commit/5853c9f7839ed910ea42b95ad0e7cbbbe3d6f2fc))
+* **connectors:** report a folder the system refuses as an error, not a crash ([a8f1852](https://github.com/dchernykh1984/training_plan_generator/commit/a8f1852c4b2fec98fed6acb6aef6d83e02ae2ea3))
+* **connectors:** report an unexpected intervals.icu folders reply as a login error ([31f2b93](https://github.com/dchernykh1984/training_plan_generator/commit/31f2b93b53396941b51a725a14d5ad4a4afae9dc))
+* **gui:** title the targets column for both credentials and folders ([8eb6691](https://github.com/dchernykh1984/training_plan_generator/commit/8eb66919c2535fc0ce2648e8c5a29f1e3c5dc522))
+
+
+### Documentation
+
+* note that Zwift's workout API is partner-only and rewrap the targets text ([ee69b50](https://github.com/dchernykh1984/training_plan_generator/commit/ee69b50677e677ca9f6b592ed84f4ec9a77d94ad))
+* say when an adapter refuses a whole plan ([9b06826](https://github.com/dchernykh1984/training_plan_generator/commit/9b068265845ffb451bd9951a67683582f311404d))
+* say which connector uses the indoor flag ([de58d2c](https://github.com/dchernykh1984/training_plan_generator/commit/de58d2ccb7e032dfdc6acef96efbf0c3be736659))
+
 ## [0.2.1](https://github.com/dchernykh1984/training_plan_generator/compare/v0.2.0...v0.2.1) (2026-11-15)
 
 
