@@ -355,6 +355,9 @@ Valid value ranges:
 - `repeat` steps may not be nested (maximum nesting depth is 1).
 - If the total expanded step count exceeds 50, a warning is written to the run log
   and the upload is still attempted.
+- A plan with a `date` is added to the workout library and also scheduled on that
+  day of the Garmin Connect calendar, which the watch syncs. Uploading it again adds
+  another copy to both, so delete the old one in Garmin Connect first.
 
 **intervals.icu notes**
 

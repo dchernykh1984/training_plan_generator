@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -65,3 +66,32 @@ def test_upload_without_login_raises():
 
 def test_connector_name():
     assert GarminConnector().connector_name == "garmin"
+
+
+def test_dated_upload_is_scheduled_on_that_day():
+    cls, instance = _mock_garmin_class({"workoutId": 555})
+    with patch("app.connectors.garmin.garminconnect.Garmin", cls):
+        connector = GarminConnector()
+        connector.login(_creds())
+        workout_id = connector.upload({}, datetime.date(2026, 11, 20))
+    assert workout_id == "555"
+    instance.schedule_workout.assert_called_once_with(555, "2026-11-20")
+
+
+def test_undated_upload_is_not_scheduled():
+    cls, instance = _mock_garmin_class()
+    with patch("app.connectors.garmin.garminconnect.Garmin", cls):
+        connector = GarminConnector()
+        connector.login(_creds())
+        connector.upload({})
+    instance.schedule_workout.assert_not_called()
+
+
+def test_failed_scheduling_names_the_uploaded_workout():
+    cls, instance = _mock_garmin_class({"workoutId": 555})
+    instance.schedule_workout.side_effect = Exception("HTTP 400")
+    with patch("app.connectors.garmin.garminconnect.Garmin", cls):
+        connector = GarminConnector()
+        connector.login(_creds())
+        with pytest.raises(RuntimeError, match="555 was uploaded but not scheduled"):
+            connector.upload({}, datetime.date(2026, 11, 20))
