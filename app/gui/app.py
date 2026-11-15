@@ -77,7 +77,9 @@ class ResolvedTarget:
     """An upload target whose credential reference has been resolved."""
 
     connector: str
-    credential: CredentialEntry
+    credential: CredentialEntry | None = None
+    # For a connector that writes files; empty means its own default folder.
+    folder: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -184,29 +186,45 @@ class UploadWorker(QThread):
         """Upload every plan to one target. Returns the number of failures."""
         import logging
 
+        from app.connectors.folder import FolderConnector
         from app.connectors.registry import get_adapter, get_connector
 
-        self.log_line.emit(f"--- {target.connector} / {target.credential.service} ---")
+        entry = target.credential
+        where = entry.service if entry else target.folder or "default folder"
+        self.log_line.emit(f"--- {target.connector} / {where} ---")
 
-        creds = self._get_creds(target, log)
-        if creds is None:
-            return len(plans)
-
-        self.log_line.emit(f"Logging in to {target.connector} ({creds.login})...")
         connector = get_connector(target.connector)
-        garmin_logger = logging.getLogger("garminconnect.client")
-        orig_level = garmin_logger.level
-        garmin_logger.setLevel(logging.ERROR)
-        try:
-            connector.login(creds)
-        except Exception as exc:
-            self.log_line.emit(f"[ERROR] Login: {exc}")
-            log.error(f"login error ({target.connector}): {exc}")
-            return len(plans)
-        finally:
-            garmin_logger.setLevel(orig_level)
+        if isinstance(connector, FolderConnector):
+            if target.folder:
+                connector.folder = Path(target.folder).expanduser()
+            try:
+                connector.login()
+            except Exception as exc:
+                self.log_line.emit(f"[ERROR] Folder: {exc}")
+                log.error(f"folder error ({target.connector}): {exc}")
+                return len(plans)
+            self.log_line.emit(
+                f"Writing {connector.extension} files to {connector.folder}"
+            )
+        else:
+            creds = self._get_creds(entry, target.connector, log)
+            if creds is None:
+                return len(plans)
 
-        log.info(f"login success: {target.connector}")
+            self.log_line.emit(f"Logging in to {target.connector} ({creds.login})...")
+            garmin_logger = logging.getLogger("garminconnect.client")
+            orig_level = garmin_logger.level
+            garmin_logger.setLevel(logging.ERROR)
+            try:
+                connector.login(creds)
+            except Exception as exc:
+                self.log_line.emit(f"[ERROR] Login: {exc}")
+                log.error(f"login error ({target.connector}): {exc}")
+                return len(plans)
+            finally:
+                garmin_logger.setLevel(orig_level)
+
+            log.info(f"login success: {target.connector}")
         adapter = get_adapter(target.connector)
 
         failures = 0
@@ -226,7 +244,12 @@ class UploadWorker(QThread):
         connector_name: str,
         log: RunLogger,
     ) -> bool:
-        adapt_result = adapter.to_payload(plan)
+        try:
+            adapt_result = adapter.to_payload(plan)
+        except ValueError as exc:
+            self.log_line.emit(f"[ERROR] {plan.name!r}: {exc}")
+            log.error(f"payload error {plan.name!r}: {exc}")
+            return False
         for w in adapt_result.warnings:
             self.log_line.emit(f"[WARNING] {w}")
             log.warning(w)
@@ -247,12 +270,15 @@ class UploadWorker(QThread):
         self.log_line.emit(f"  done (id={workout_id}), cached: {payload_path}")
         return True
 
-    def _get_creds(self, target: ResolvedTarget, log: RunLogger) -> Credentials | None:
+    def _get_creds(
+        self, entry: CredentialEntry | None, connector: str, log: RunLogger
+    ) -> Credentials | None:
         from app.credentials.base import CredentialRequest, Credentials
 
-        entry = target.credential
         self.log_line.emit("Reading credentials...")
         try:
+            if entry is None:
+                raise ValueError(f"no credential chosen for {connector}")
             if entry.source == "keepass":
                 provider = _keepass_provider(
                     entry.keepass_path, self._keepass_passwords, self._kp_providers
@@ -263,7 +289,7 @@ class UploadWorker(QThread):
                 # entries whose URL is shorter (e.g. "connect.garmin.com").
                 request = CredentialRequest(
                     service=entry.service,
-                    url=target.connector,
+                    url=connector,
                     login=entry.login or None,
                 )
                 return provider.get(request)
@@ -303,6 +329,21 @@ def _find_credential(
         if entry.service == service and entry.login == login:
             return entry
     return None
+
+
+def _target_label(target: UploadTarget, entries: list[CredentialEntry]) -> str:
+    """What the targets table shows in the credential column for ``target``."""
+    from app.connectors.registry import folder_connector_class
+
+    if folder_connector_class(target.connector) is not None:
+        return f"folder: {target.folder or 'found automatically'}"
+    label = (
+        f"{target.credential_service} ({target.credential_login})"
+        if target.credential_login
+        else target.credential_service
+    )
+    cred = _find_credential(entries, target.credential_service, target.credential_login)
+    return label if cred is not None else label + "  [missing]"
 
 
 def _keepass_paths(credentials: list[CredentialEntry]) -> list[str]:
@@ -654,7 +695,10 @@ class CredentialsTab(QWidget):
 
 
 class TargetDialog(QDialog):
-    """Pick a connector and one of the stored credentials for it."""
+    """Pick a connector and one of the stored credentials for it.
+
+    A connector that writes files has no account, so it gets a folder instead.
+    """
 
     def __init__(
         self,
@@ -666,7 +710,7 @@ class TargetDialog(QDialog):
         self.setWindowTitle("Add Target" if target is None else "Edit Target")
         self.setMinimumWidth(400)
 
-        form = QFormLayout(self)
+        form = self._form = QFormLayout(self)
         _fill_row_width(form)
 
         self._connector = QComboBox()
@@ -690,7 +734,18 @@ class TargetDialog(QDialog):
                 ):
                     self._credential.setCurrentIndex(i)
                     break
+        self._credential.setPlaceholderText("Add one in the Credentials tab first")
         form.addRow("Credential:", self._credential)
+
+        self._folder = QLineEdit(target.folder if target is not None else "")
+        browse = QPushButton("Browse...")
+        browse.clicked.connect(self._browse_folder)
+        self._folder_row = QWidget()
+        folder_layout = QHBoxLayout(self._folder_row)
+        folder_layout.setContentsMargins(0, 0, 0, 0)
+        folder_layout.addWidget(self._folder)
+        folder_layout.addWidget(browse)
+        form.addRow("Folder:", self._folder_row)
 
         btns = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -698,14 +753,45 @@ class TargetDialog(QDialog):
         btns.accepted.connect(self.accept)
         btns.rejected.connect(self.reject)
         form.addRow(btns)
+        self._ok_btn = btns.button(QDialogButtonBox.StandardButton.Ok)
 
-        ok_btn = btns.button(QDialogButtonBox.StandardButton.Ok)
-        ok_btn.setEnabled(self._credential.count() > 0)
+        self._connector.currentTextChanged.connect(self._update_fields)
+        self._folder.textChanged.connect(self._update_fields)
+        self._update_fields()
+
+    def _update_fields(self) -> None:
+        """Show the credential or the folder row, whichever the connector takes."""
+        from app.connectors.registry import folder_connector_class
+
+        folder_cls = folder_connector_class(self._connector.currentText())
+        self._form.setRowVisible(self._credential, folder_cls is None)
+        self._form.setRowVisible(self._folder_row, folder_cls is not None)
+        if folder_cls is None:
+            self._ok_btn.setEnabled(self._credential.count() > 0)
+            return
+        self._folder.setPlaceholderText(
+            "Optional: found automatically" if folder_cls.has_default_folder else ""
+        )
+        self._ok_btn.setEnabled(
+            folder_cls.has_default_folder or bool(self._folder.text().strip())
+        )
+
+    def _browse_folder(self) -> None:
+        path = QFileDialog.getExistingDirectory(
+            self, "Choose folder", self._folder.text()
+        )
+        if path:
+            self._folder.setText(path)
 
     def result_target(self) -> UploadTarget:
+        from app.connectors.registry import folder_connector_class
+
+        connector = self._connector.currentText()
+        if folder_connector_class(connector) is not None:
+            return UploadTarget(connector=connector, folder=self._folder.text().strip())
         cred: CredentialEntry | None = self._credential.currentData()
         return UploadTarget(
-            connector=self._connector.currentText(),
+            connector=connector,
             credential_service=cred.service if cred else "",
             credential_login=cred.login if cred else "",
         )
@@ -823,28 +909,12 @@ class UploadTab(QWidget):
             row = self._table.rowCount()
             self._table.insertRow(row)
             self._table.setItem(row, 0, QTableWidgetItem(target.connector))
-            cred = _find_credential(
-                entries, target.credential_service, target.credential_login
+            self._table.setItem(
+                row, 1, QTableWidgetItem(_target_label(target, entries))
             )
-            label = (
-                f"{target.credential_service} ({target.credential_login})"
-                if target.credential_login
-                else target.credential_service
-            )
-            if cred is None:
-                label += "  [missing]"
-            self._table.setItem(row, 1, QTableWidgetItem(label))
 
     def _add_target(self) -> None:
-        entries = self._creds_tab.entries()
-        if not entries:
-            QMessageBox.warning(
-                self,
-                "No credentials",
-                "Add a credential in the Credentials tab first.",
-            )
-            return
-        dlg = TargetDialog(entries, parent=self)
+        dlg = TargetDialog(self._creds_tab.entries(), parent=self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self._targets.append(dlg.result_target())
             self._store.save_targets(self._targets)
@@ -858,8 +928,6 @@ class UploadTab(QWidget):
         if row < 0:
             return
         entries = self._creds_tab.entries()
-        if not entries:
-            return
         dlg = TargetDialog(entries, target=self._targets[row], parent=self)
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
@@ -881,10 +949,15 @@ class UploadTab(QWidget):
 
     def _resolve_targets(self) -> tuple[list[ResolvedTarget], list[str]]:
         """Match every target's credential reference against stored credentials."""
+        from app.connectors.registry import folder_connector_class
+
         entries = self._creds_tab.entries()
         resolved: list[ResolvedTarget] = []
         missing: list[str] = []
         for target in self._targets:
+            if folder_connector_class(target.connector) is not None:
+                resolved.append(ResolvedTarget(target.connector, folder=target.folder))
+                continue
             cred = _find_credential(
                 entries, target.credential_service, target.credential_login
             )
@@ -931,7 +1004,7 @@ class UploadTab(QWidget):
             )
             return
 
-        kp_paths = _keepass_paths([t.credential for t in resolved])
+        kp_paths = _keepass_paths([t.credential for t in resolved if t.credential])
         proceed, kp_passwords = self._prompt_keepass_passwords(kp_paths)
         if not proceed:
             return

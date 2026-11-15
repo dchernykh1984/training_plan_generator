@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 
-def _slugify(name: str) -> str:
+def slugify(name: str) -> str:
     slug = name.lower()
     slug = re.sub(r"[^\w\s-]", "", slug)
     slug = re.sub(r"[\s_-]+", "_", slug)
@@ -25,12 +25,12 @@ class WorkoutCache:
     def save_connector_payload(
         self, name: str, connector_name: str, payload: dict
     ) -> Path:
-        path = self._workouts_dir / f"{_slugify(name)}.{connector_name}.json"
+        path = self._workouts_dir / f"{slugify(name)}.{connector_name}.json"
         path.write_text(json.dumps(payload, indent=2))
         return path
 
     def save_source_plan(self, name: str, content: bytes) -> Path:
-        path = self._workouts_dir / f"{_slugify(name)}.source.json"
+        path = self._workouts_dir / f"{slugify(name)}.source.json"
         path.write_bytes(content)
         return path
 

@@ -200,8 +200,9 @@ The window has two tabs:
   database and reports whether an entry with that Title exists.
 - **Upload** - pick a plan file, then build a table of **upload targets**. Each row
   is one destination: a connector plus one of the credentials from the Credentials
-  tab. Pressing **Upload** sends *every workout in the file* to *every target in the
-  table*; progress and warnings appear in the log pane below the button.
+  tab. A connector that writes files (`zwift`) takes a folder instead of a
+  credential. Pressing **Upload** sends *every workout in the file* to *every target
+  in the table*; progress and warnings appear in the log pane below the button.
 
 Double-clicking a row in either table opens it for editing.
 
@@ -250,6 +251,17 @@ uv run training-plan-generator upload \
   --connector intervals \
   --credentials-provider json \
   --creds-json templates/credentials.json
+```
+
+[Zwift](https://www.zwift.com) needs no credentials: `--connector zwift` writes each
+workout as a `.zwo` file into Zwift's custom workouts folder on this computer (see the
+Zwift notes under [JSON plan format](#json-plan-format)). Pass `--output-dir PATH` to
+write the files somewhere else, e.g. to import them into another app:
+
+```bash
+uv run training-plan-generator upload \
+  --plan templates/workout_garmin.json \
+  --connector zwift
 ```
 
 Use `--login` to select a specific account when the credentials store has more than one
@@ -384,6 +396,26 @@ Valid value ranges:
 - intervals.icu needs a duration for every step: an `open` step is planned as 5
   minutes and marked "press lap", so the device waits for the lap button.
 
+**Zwift notes**
+
+- Zwift has no upload API; it reads custom workouts from
+  `Documents/Zwift/Workouts/<your Zwift ID>` on the computer it runs on and syncs
+  them to your account on the next start. The connector finds that folder itself
+  when there is exactly one Zwift ID in it; otherwise choose the folder. Other apps
+  that import `.zwo` files (MyWhoosh, ROUVY, Xert, intervals.icu) can use the same
+  files.
+- Only `cycling` plans become Zwift workouts; other sports fail with an error.
+- Zwift sets power as a share of FTP, so power targets need the plan's `ftp_watts`;
+  without it they become free-ride steps and a warning is written to the run log.
+  Zwift holds one power and one cadence per step, so a range becomes its middle.
+- Zwift has no heart-rate targets, so a `heart_rate` target is kept in the step
+  text, and repeats are written out step by step.
+- Zwift steps are always timed: an `open` or `distance` step becomes a 5-minute
+  step, with a warning.
+- The file is named after the workout, prefixed with the plan's `date` if it has
+  one, e.g. `2026-11-20_3x8_cycling_intervals.zwo`; writing the same workout again
+  replaces the file.
+
 ### Adapter warning/fallback contract
 
 Adapters return warnings in `AdapterResult.warnings` rather than raising exceptions
@@ -409,6 +441,7 @@ logs/
   workouts/
     <slug>.garmin.json          Garmin payload
     <slug>.intervals.json       intervals.icu payload
+    <slug>.zwift.json           Zwift payload (the .zwo text and its name)
     <slug>.source.json          original source plan JSON
   training_plan_generator.log   append log across all runs
 ```
@@ -423,7 +456,10 @@ entry. No changes to CLI, cache, or orchestration are needed in either case:
 
 - **New connector:** implement `PayloadAdapter` (workout plan -> service JSON) in
   `app/adapters/` and `WorkoutConnector` (auth + upload) in `app/connectors/`, then
-  add both to `CONNECTORS` / `PAYLOAD_ADAPTERS` in `app/connectors/registry.py`.
+  add both to `CONNECTORS` / `PAYLOAD_ADAPTERS` in `app/connectors/registry.py` and
+  the name to `CONNECTOR_TYPES` in `app/gui/config_store.py`. A connector that
+  writes files subclasses `FolderConnector` instead; its adapter returns the file
+  as `{"name", "content"}` (or `"content_base64"` for binary files).
 - **New credential provider:** implement `CredentialProvider` and
   `CredentialProviderFactory` in `app/credentials/`, add the factory instance to
   `PROVIDER_FACTORIES` in `app/credentials/registry.py`. The factory's
