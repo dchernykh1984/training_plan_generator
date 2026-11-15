@@ -34,8 +34,13 @@ class FolderConnector(WorkoutConnector):
 
     def login(self, creds: Credentials | None = None) -> None:
         """Check the folder; there is no account to log in to."""
-        folder = self.folder or self.default_folder()
-        if not folder.is_dir():
+        try:
+            folder = self.folder or self.default_folder()
+            found = folder.is_dir()
+        except OSError as e:
+            # e.g. macOS refusing this app access to the Documents folder
+            raise RuntimeError(f"Cannot open the folder: {e}") from e
+        if not found:
             raise RuntimeError(f"Folder not found: {folder}")
         self.folder = folder
         self._ready = True
