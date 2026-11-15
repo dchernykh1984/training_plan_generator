@@ -754,6 +754,15 @@ def test_target_dialog_takes_a_folder_for_zwift(qtbot) -> None:
     assert dlg.result_target() == UploadTarget("zwift", folder="/home/me/zwift")
 
 
+def test_target_dialog_needs_a_folder_for_erg_files(qtbot) -> None:
+    dlg = TargetDialog([])
+    qtbot.addWidget(dlg)
+    dlg._connector.setCurrentText("erg-file")
+    assert not dlg._ok_btn.isEnabled()
+    dlg._folder.setText("/home/me/erg")
+    assert dlg._ok_btn.isEnabled()
+
+
 def test_target_dialog_preselects_a_folder_target(qtbot) -> None:
     dlg = TargetDialog([], target=UploadTarget("zwift", folder="/home/me/zwift"))
     qtbot.addWidget(dlg)

@@ -8,42 +8,21 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 
-from app.adapters.base import AdapterResult, PayloadAdapter
-from app.models.workout import RepeatStep, Target, WorkoutPlan, WorkoutStep
-
-# Zwift steps are always timed, so an open or distance step gets this duration.
-_FALLBACK_SECONDS = 300
+from app.adapters.base import (
+    AdapterResult,
+    PayloadAdapter,
+    flatten_steps,
+    middle,
+    timed_seconds,
+)
+from app.models.workout import WorkoutPlan, WorkoutStep
 
 # Zwift labels these blocks; equal low and high power keep them flat.
 _RAMP_ELEMENTS = {"warmup": "Warmup", "cooldown": "Cooldown"}
 
 
-def _middle(target: Target) -> float:
-    return (target.low + target.high) / 2
-
-
-def _flatten(steps: tuple[WorkoutStep | RepeatStep, ...]) -> list[WorkoutStep]:
-    flat: list[WorkoutStep] = []
-    for step in steps:
-        if isinstance(step, RepeatStep):
-            # Each step keeps its own name this way, which a Zwift interval
-            # block of exactly two steps could not.
-            flat += _flatten(step.steps) * step.count
-        else:
-            flat.append(step)
-    return flat
-
-
 def _element(step: WorkoutStep, ftp: int | None, warnings: list[str]) -> ET.Element:
-    seconds = step.duration_seconds
-    if step.duration_type != "time" or seconds is None:
-        what = "open" if seconds is None else f"{seconds} m"
-        warnings.append(
-            f"Step '{step.type}': Zwift steps are timed; {what} step planned as "
-            f"{_FALLBACK_SECONDS // 60}m"
-        )
-        seconds = _FALLBACK_SECONDS
-    attrs = {"Duration": str(seconds)}
+    attrs = {"Duration": str(timed_seconds(step, "Zwift", warnings))}
     targets = {t.type: t for t in step.targets}
 
     tag = "FreeRide"
@@ -54,7 +33,7 @@ def _element(step: WorkoutStep, ftp: int | None, warnings: list[str]) -> ET.Elem
             "its power targets"
         )
     elif power is not None and ftp is not None:
-        share = str(round(_middle(power) / ftp, 3))
+        share = str(round(middle(power) / ftp, 3))
         tag = _RAMP_ELEMENTS.get(step.type, "SteadyState")
         if tag == "SteadyState":
             attrs["Power"] = share
@@ -66,7 +45,7 @@ def _element(step: WorkoutStep, ftp: int | None, warnings: list[str]) -> ET.Elem
             )
     cadence = targets.get("cadence")
     if cadence is not None:
-        attrs["Cadence"] = str(round(_middle(cadence)))
+        attrs["Cadence"] = str(round(middle(cadence)))
 
     element = ET.Element(tag, attrs)
     cue = [" ".join(step.name.split())] if step.name else []
@@ -99,7 +78,9 @@ class ZwiftWorkoutAdapter(PayloadAdapter):
         ET.SubElement(root, "description").text = plan.description
         ET.SubElement(root, "sportType").text = "bike"
         workout = ET.SubElement(root, "workout")
-        for step in _flatten(plan.steps):
+        # Written out step by step, every step keeps its own name, which a Zwift
+        # interval block of exactly two steps could not.
+        for step in flatten_steps(plan.steps):
             workout.append(_element(step, plan.ftp_watts, warnings))
         ET.indent(root)
         content = ET.tostring(root, encoding="unicode") + "\n"
