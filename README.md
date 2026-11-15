@@ -390,7 +390,8 @@ Valid value ranges:
   **Connections** with "Upload planned workouts" on (Garmin, Zwift, Wahoo, COROS,
   Suunto and others), usually for the next 7 days. Zwift only takes workouts marked
   `"indoor": true`. Uploading the same workout name for the same day again updates
-  that calendar entry instead of adding a second one.
+  that calendar entry instead of adding a second one; two workouts of one name on
+  one day in the same file stay two entries.
 - A plan without a `date` is added to the workout library of the key's owner, in a
   folder named **Training Plan Generator** that is created on the first such upload.
 - Each workout is sent in the intervals.icu workout text format, so it stays
@@ -420,7 +421,8 @@ Valid value ranges:
   step, with a warning.
 - The file is named after the workout, prefixed with the plan's `date` if it has
   one, e.g. `2026-11-20_3x8_cycling_intervals.zwo`; writing the same workout again
-  replaces the file.
+  replaces the file. A second workout of the same name and day in one file gets a
+  `_2` suffix.
 
 **ERG file notes**
 

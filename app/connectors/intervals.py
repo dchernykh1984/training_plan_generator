@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+from collections import Counter
 from typing import Any
 
 import requests
@@ -46,6 +47,7 @@ class IntervalsConnector(WorkoutConnector):
     def __init__(self) -> None:
         self._session: requests.Session | None = None
         self._folder_id: int | None = None
+        self._uids: Counter[str] = Counter()
 
     @property
     def connector_name(self) -> str:
@@ -72,13 +74,17 @@ class IntervalsConnector(WorkoutConnector):
         if self._session is None:
             raise RuntimeError("Not logged in; call login() first")
         if day is not None:
+            # The same workout on the same day is updated, not added twice; a
+            # second one of that name on that day in one run is its own event.
+            uid = f"training-plan-generator/{day}/{payload['type']}/{payload['name']}"
+            self._uids[uid] += 1
+            if self._uids[uid] > 1:
+                uid += f"#{self._uids[uid]}"
             event = {
                 **payload,
                 "category": "WORKOUT",
                 "start_date_local": f"{day.isoformat()}T00:00:00",
-                # The same workout on the same day is updated, not added twice.
-                "uid": f"training-plan-generator/{day}/{payload['type']}/"
-                f"{payload['name']}",
+                "uid": uid,
             }
             path = "events?upsertOnUid=true"
             return str(_call(self._session, "POST", path, event)["id"])

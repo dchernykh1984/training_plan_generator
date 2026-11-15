@@ -106,6 +106,23 @@ def test_dated_upload_goes_on_the_calendar_and_updates_a_repeat():
     )
 
 
+def test_two_workouts_of_one_name_on_one_day_stay_two_events():
+    connector, session = _logged_in(
+        _response([]), _response({"id": 1}), _response({"id": 2})
+    )
+    payload = {"name": "Easy Run", "type": "Run", "description": "- 30m"}
+    day = datetime.date(2026, 11, 20)
+
+    connector.upload(payload, day)
+    connector.upload(payload, day)
+
+    uids = [c.kwargs["json"]["uid"] for c in session.request.call_args_list[1:]]
+    assert uids == [
+        "training-plan-generator/2026-11-20/Run/Easy Run",
+        "training-plan-generator/2026-11-20/Run/Easy Run#2",
+    ]
+
+
 def test_rejected_api_key_fails_login_without_leaking_it():
     with pytest.raises(RuntimeError, match="login failed") as exc_info:
         _logged_in(_response(status=401, text='{"error": "Unauthorized"}'))

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import datetime
+from collections import Counter
 from pathlib import Path
 
 from app.cache import slugify
@@ -28,6 +29,7 @@ class FolderConnector(WorkoutConnector):
     def __init__(self, folder: Path | None = None) -> None:
         self.folder = folder
         self._ready = False
+        self._stems: Counter[str] = Counter()
 
     def default_folder(self) -> Path:
         raise RuntimeError(f"Choose the folder to write {self.extension} files to")
@@ -51,6 +53,10 @@ class FolderConnector(WorkoutConnector):
         stem = slugify(payload["name"]) or "workout"
         if day is not None:
             stem = f"{day.isoformat()}_{stem}"
+        # A second workout of the same name and day in one run gets its own file.
+        self._stems[stem] += 1
+        if self._stems[stem] > 1:
+            stem += f"_{self._stems[stem]}"
         path = self.folder / f"{stem}{self.extension}"
         if "content_base64" in payload:
             path.write_bytes(base64.b64decode(payload["content_base64"]))
